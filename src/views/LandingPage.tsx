@@ -35,15 +35,18 @@ function Hero() {
           Less noise. More context. Better-informed decisions.
         </div>
       </div>
-      <figure className="hero-artwork">
-        <Image
-          src="/football-striker-3d.png"
-          alt="3D artwork of a footballer in a navy kit preparing to strike the ball"
-          width={1536}
-          height={1024}
-          sizes="(max-width: 740px) 100vw, 62vw"
-          preload
-        />
+      <figure className="hero-artwork hero-popout">
+        <div className="popout-stage">
+          <div className="popout-frame" aria-hidden="true" />
+          <Image
+            src="/football-cartoon-popout.png"
+            alt="3D cartoon footballer kicking a ball toward you, emerging beyond a tilted blue frame"
+            width={1127}
+            height={1396}
+            sizes="(max-width: 740px) 100vw, 62vw"
+            preload
+          />
+        </div>
         <figcaption>
           <span>The beautiful game, from a different perspective</span>
           <a href="#soccertradeview">
@@ -371,8 +374,8 @@ export function LandingPage() {
         <HowItWorks />
         <figure className="matchday-artwork container" data-reveal>
           <Image
-            src="/football-matchday-3d.png"
-            alt="Two footballers in navy kits driving forward with the ball under stadium lights"
+            src="/football-cartoon-team.png"
+            alt="Two expressive 3D cartoon football teammates dribbling under blue stadium lights"
             width={1536}
             height={1024}
             sizes="(max-width: 740px) 100vw, 90vw"
