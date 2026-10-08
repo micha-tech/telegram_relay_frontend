@@ -9,7 +9,6 @@ function Hero() {
   return (
     <section className="hero container">
       <div className="hero-copy">
-        <Eyebrow>The game, the market, your edge</Eyebrow>
         <h1>
           See the match.
           <br />
@@ -38,10 +37,10 @@ function Hero() {
       </div>
       <figure className="hero-artwork">
         <Image
-          src="/football-artwork.png"
-          alt="Footballer striking a ball beside a mobile football interface"
-          width={2048}
-          height={1536}
+          src="/football-striker-3d.png"
+          alt="3D artwork of a footballer in a navy kit preparing to strike the ball"
+          width={1536}
+          height={1024}
           sizes="(max-width: 740px) 100vw, 62vw"
           preload
         />
@@ -370,6 +369,15 @@ export function LandingPage() {
         <FeatureSection />
         <SoccerTradeViewSection />
         <HowItWorks />
+        <figure className="matchday-artwork container" data-reveal>
+          <Image
+            src="/football-matchday-3d.png"
+            alt="Two footballers in navy kits driving forward with the ball under stadium lights"
+            width={1536}
+            height={1024}
+            sizes="(max-width: 740px) 100vw, 90vw"
+          />
+        </figure>
         <SubscriptionCTA />
         <TrustNote />
       </main>

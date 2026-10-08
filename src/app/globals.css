@@ -1839,6 +1839,27 @@ body {
     transform 0.7s cubic-bezier(0.22, 1, 0.36, 1),
     filter 0.7s ease;
 }
+.matchday-artwork {
+  overflow: hidden;
+  border-radius: 32px;
+  margin-bottom: 44px;
+  border: 1px solid #9ab2d126;
+  background: #071020;
+}
+.matchday-artwork img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 620px;
+  object-fit: cover;
+  object-position: center 55%;
+}
+@media (max-width: 740px) {
+  .matchday-artwork {
+    border-radius: 22px;
+    margin-bottom: 28px;
+  }
+}
 .platform-strip {
   background: #0a1221b8;
   border-color: #8fa5c21c;
