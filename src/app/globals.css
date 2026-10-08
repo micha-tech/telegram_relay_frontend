@@ -1820,23 +1820,18 @@ body {
     filter 0.7s ease;
 }
 .matchday-artwork {
-  overflow: hidden;
-  border-radius: 32px;
+  display: flex;
+  justify-content: center;
   margin-bottom: 44px;
-  border: 1px solid #9ab2d126;
-  background: #071020;
 }
 .matchday-artwork img {
   display: block;
-  width: 100%;
+  width: min(100%, 440px);
   height: auto;
-  max-height: 620px;
-  object-fit: cover;
-  object-position: center 55%;
+  object-fit: contain;
 }
 @media (max-width: 740px) {
   .matchday-artwork {
-    border-radius: 22px;
     margin-bottom: 28px;
   }
 }

@@ -2,6 +2,14 @@
 
 Generated using the built-in image generation tool.
 
+## Branded shirts — current assets
+
+`football-striker-branded.png`, `football-standing-branded.png`, and `football-auth-branded.png` replace the active unbranded player artwork. Built-in image edit prompt: change only the jersey chest by adding exact white uppercase sponsor lettering “PRIME EDGE” on the first line and “FOOTBALL” on the second, bold modern sans serif, following fabric folds and torso perspective. Preserve face, pose, kit, ball, framing and background. Preserve genuine transparency on the two 3D cutouts; no glow or halos. Standing-player refinement: keep exact transparent silhouette, change only inside chest, preserve all transparent pixels. Auth illustration: retain phone interface and vector illustration style.
+
+## Standing player replacement
+
+`football-standing-player.png` replaces the stadium scene. Built-in generation prompt: full-body realistic stylized 3D footballer resembling Cristiano Ronaldo, angular face, tan skin, short styled dark hair, athletic adult build. Confident relaxed standing pose, one arm holding a white and navy soccer ball at his hip, other hand on waist. Navy kit with pale blue trim, white socks, pale blue boots. Soft studio lighting, transparent background, no text, logos, numbers, stadium or neon. Follow-up edit: remove all background haze and halos outside the exact silhouette, preserving face, pose, kit and held ball, including transparency between arms and legs.
+
 ## Realistic icons
 
 `football-icons-3d.png`: generated with the built-in image tool. Prompt: four equally spaced realistic 3D icons on a transparent horizontal strip — silver referee whistle, navy and silver ascending chart bars, white and navy football, brushed silver trophy. Cohesive studio lighting, matte navy and silver materials, natural shadows; no neon, glow, text, numbers, logos, or dividers. Targeted correction: replace the third icon with a perfectly round association-football soccer ball with white hexagonal and navy pentagonal panels, no laces; preserve all other icons and transparent layout.

@@ -39,7 +39,7 @@ function Hero() {
         <div className="popout-stage">
           <div className="popout-frame" aria-hidden="true" />
           <Image
-            src="/football-striker-popout.png"
+            src="/football-striker-branded.png"
             alt="3D footballer striking a ball, with his arms and boots extending beyond a tilted blue frame"
             width={1254}
             height={1254}
@@ -378,11 +378,11 @@ export function LandingPage() {
         <HowItWorks />
         <figure className="matchday-artwork container" data-reveal>
           <Image
-            src="/football-cartoon-team.png"
-            alt="Two expressive 3D cartoon football teammates dribbling under blue stadium lights"
-            width={1536}
-            height={1024}
-            sizes="(max-width: 740px) 100vw, 90vw"
+            src="/football-standing-branded.png"
+            alt="3D illustration of a Ronaldo-like footballer standing confidently with a ball held at his hip"
+            width={1024}
+            height={1535}
+            sizes="(max-width: 740px) 85vw, 440px"
           />
         </figure>
         <SubscriptionCTA />

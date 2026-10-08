@@ -131,10 +131,10 @@ export function AuthPage({
           </p>
           <div className="auth-artwork">
             <Image
-              src="/football-artwork.png"
+              src="/football-auth-branded.png"
               alt="Illustrated footballer beside a mobile football match interface"
-              width={2048}
-              height={1536}
+              width={1448}
+              height={1086}
               sizes="(max-width: 740px) 1px, 50vw"
             />
           </div>
