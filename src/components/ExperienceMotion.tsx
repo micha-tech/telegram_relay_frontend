@@ -6,11 +6,7 @@ export function ExperienceMotion() {
   useEffect(() => {
     const root = document.documentElement;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)");
     let frame = 0;
-    let pointerFrame = 0;
-    let pointerX = 0;
-    let pointerY = 0;
 
     const updateScroll = () => {
       cancelAnimationFrame(frame);
@@ -21,18 +17,6 @@ export function ExperienceMotion() {
           "--page-progress",
           String(Math.min(1, Math.max(0, progress))),
         );
-      });
-    };
-
-    const updatePointer = (event: PointerEvent) => {
-      if (!finePointer.matches) return;
-      pointerX = event.clientX;
-      pointerY = event.clientY;
-      if (pointerFrame) return;
-      pointerFrame = requestAnimationFrame(() => {
-        root.style.setProperty("--pointer-x", `${pointerX}px`);
-        root.style.setProperty("--pointer-y", `${pointerY}px`);
-        pointerFrame = 0;
       });
     };
 
@@ -57,24 +41,18 @@ export function ExperienceMotion() {
     updateScroll();
     window.addEventListener("scroll", updateScroll, { passive: true });
     window.addEventListener("resize", updateScroll);
-    window.addEventListener("pointermove", updatePointer, { passive: true });
 
     return () => {
       cancelAnimationFrame(frame);
-      cancelAnimationFrame(pointerFrame);
       revealObserver?.disconnect();
       window.removeEventListener("scroll", updateScroll);
       window.removeEventListener("resize", updateScroll);
-      window.removeEventListener("pointermove", updatePointer);
       root.style.removeProperty("--page-progress");
-      root.style.removeProperty("--pointer-x");
-      root.style.removeProperty("--pointer-y");
     };
   }, []);
 
   return (
     <>
-      <div className="ambient-glow" aria-hidden="true" />
       <div className="scroll-progress" aria-hidden="true">
         <span />
       </div>

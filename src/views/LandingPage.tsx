@@ -39,10 +39,10 @@ function Hero() {
         <div className="popout-stage">
           <div className="popout-frame" aria-hidden="true" />
           <Image
-            src="/football-cartoon-popout.png"
-            alt="3D cartoon footballer kicking a ball toward you, emerging beyond a tilted blue frame"
-            width={1127}
-            height={1396}
+            src="/football-striker-popout.png"
+            alt="3D footballer striking a ball, with his arms and boots extending beyond a tilted blue frame"
+            width={1254}
+            height={1254}
             sizes="(max-width: 740px) 100vw, 62vw"
             preload
           />
@@ -72,16 +72,20 @@ function PlatformStrip() {
           <b>OF THE GAME.</b>
         </span>
         <div>
-          <span className="strip-icon">⌁</span>Live match signals
+          <span className="icon-3d icon-whistle" aria-hidden="true" />
+          Live match signals
         </div>
         <div>
-          <span className="strip-icon">▥</span>Odds movement
+          <span className="icon-3d icon-chart" aria-hidden="true" />
+          Odds movement
         </div>
         <div>
-          <span className="strip-icon">◷</span>Football context
+          <span className="icon-3d icon-football" aria-hidden="true" />
+          Football context
         </div>
         <div>
-          <span className="strip-icon">↗</span>Performance tracking
+          <span className="icon-3d icon-trophy" aria-hidden="true" />
+          Performance tracking
         </div>
       </div>
     </div>
@@ -113,7 +117,7 @@ function FeatureGraphic({ type }: { type: string }) {
       <div className="feature-graphic signal-graphic">
         <div className="sample-label">A signal in context</div>
         <div className="signal-row">
-          <span className="signal-icon">↗</span>
+          <span className="icon-3d icon-whistle" aria-hidden="true" />
           <div>
             <b>Market movement identified</b>
             <span>
@@ -306,7 +310,7 @@ function SubscriptionCTA() {
 function TrustNote() {
   return (
     <section className="trust-note container" data-reveal>
-      <span className="trust-symbol">↗</span>
+      <span className="icon-3d icon-football" aria-hidden="true" />
       <div>
         <h3>Built for analysis. Grounded in reality.</h3>
         <p>

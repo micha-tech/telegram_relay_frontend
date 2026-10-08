@@ -2,6 +2,16 @@
 
 Generated using the built-in image generation tool.
 
+## Realistic icons
+
+`football-icons-3d.png`: generated with the built-in image tool. Prompt: four equally spaced realistic 3D icons on a transparent horizontal strip — silver referee whistle, navy and silver ascending chart bars, white and navy football, brushed silver trophy. Cohesive studio lighting, matte navy and silver materials, natural shadows; no neon, glow, text, numbers, logos, or dividers. Targeted correction: replace the third icon with a perfectly round association-football soccer ball with white hexagonal and navy pentagonal panels, no laces; preserve all other icons and transparent layout.
+
+## Latest selected hero
+
+`football-striker-popout.png` supersedes the cartoon hero below. Edited with the built-in image generation tool from the user-selected striker.
+
+Prompt: Use case: background-extraction. Image 1 is the edit target. Remove ONLY the navy background and floor, producing a genuinely transparent cutout of the existing football player and ball. Preserve this exact player's face, realistic stylized 3D rendering, hairstyle, skin, navy and pale blue kit, white socks, blue boots, pose, anatomy, lighting, and the ball's position and appearance. Do not redesign, cartoonify, change expression, or change proportions. Keep all limbs and both boots and ball intact with clean precise edges, no halos. Crop empty outer margins to a balanced nearly square canvas with modest transparent padding. No new objects, frames, shadows on a floor, text or logos. Intended for a website where the cutout projects beyond a frame.
+
 ## Cartoon replacements
 
 Current hero: `football-cartoon-popout.png`. Prompt: premium 3D cartoon adult football player, dark brown skin, oversized expressive head, big friendly eyes, rounded facial features, compact athletic body and chunky boots. Navy kit with sky-blue trim, white socks. Foreshortened kick toward the viewer with a large white-and-navy ball and boot in the foreground. Matte rounded CGI surfaces, blue rim light, genuinely transparent background for layering outside a card. No text, numbers, logos, floor, frame or scene.
