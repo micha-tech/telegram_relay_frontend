@@ -23,9 +23,9 @@ export function SoccerTradeViewSection() {
   return (
     <section id="soccertradeview" className="product-section">
       <div className="container">
-        <div className="section-intro">
+        <div className="section-intro" data-reveal>
           <div>
-            <Eyebrow>INTRODUCING SOCCERTRADEVIEW</Eyebrow>
+            <Eyebrow>Meet SoccerTradeView</Eyebrow>
             <h2>
               The match and the market.
               <br />
@@ -39,15 +39,15 @@ export function SoccerTradeViewSection() {
             <br className="desktop-break" /> brought together on one screen.
           </p>
         </div>
-        <div className="product-browser">
+        <div className="product-browser" data-reveal>
           <div className="browser-bar">
             <div className="browser-dots">
               <i />
               <i />
               <i />
             </div>
-            <span>PRIME EDGE FOOTBALL / SOCCERTRADEVIEW</span>
-            <span className="browser-secure">▣ &nbsp; PRODUCT PREVIEW</span>
+            <span>Prime Edge · SoccerTradeView</span>
+            <span className="browser-secure">Interactive preview</span>
           </div>
           <ProductPreview expanded />
         </div>
@@ -56,9 +56,9 @@ export function SoccerTradeViewSection() {
             Illustrative match data · Explore the markets and chart intervals
             above.
           </span>
-          <span>DESIGNED FOR CLARITY.</span>
+          <span>Designed for clarity</span>
         </div>
-        <div className="product-details">
+        <div className="product-details" data-reveal>
           {details.map((detail, i) => (
             <div
               className={`product-detail ${active === i ? "detail-active" : ""}`}
@@ -69,7 +69,6 @@ export function SoccerTradeViewSection() {
                 aria-controls={`detail-${i}`}
                 onClick={() => setActive(i)}
               >
-                <span>0{i + 1}</span>
                 {detail.title}
                 <span className="detail-symbol">
                   {active === i ? "−" : "+"}

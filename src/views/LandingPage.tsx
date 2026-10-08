@@ -3,12 +3,13 @@ import Image from "next/image";
 import { Arrow, Brand, ButtonLink, Eyebrow } from "../components/ui";
 import { Header } from "../components/Header";
 import { SoccerTradeViewSection } from "../components/SoccerTradeViewSection";
+import { ExperienceMotion } from "../components/ExperienceMotion";
 
 function Hero() {
   return (
     <section className="hero container">
       <div className="hero-copy">
-        <Eyebrow>THE GAME. THE MARKET. YOUR EDGE.</Eyebrow>
+        <Eyebrow>The game, the market, your edge</Eyebrow>
         <h1>
           See the match.
           <br />
@@ -45,23 +46,23 @@ function Hero() {
           preload
         />
         <figcaption>
-          <span>THE BEAUTIFUL GAME. A DIFFERENT PERSPECTIVE.</span>
+          <span>The beautiful game, from a different perspective</span>
           <a href="#soccertradeview">
             Explore SoccerTradeView <Arrow diagonal />
           </a>
         </figcaption>
       </figure>
       <div className="hero-index">
-        <span>BUILT AROUND THE GAME</span>
+        <span>Built around the game</span>
         <div />
-        <span>SCROLL TO EXPLORE ↓</span>
+        <span>Scroll to explore ↓</span>
       </div>
     </section>
   );
 }
 function PlatformStrip() {
   return (
-    <div className="platform-strip">
+    <div className="platform-strip" data-reveal>
       <div className="container">
         <span>
           A COMPLETE VIEW
@@ -86,24 +87,21 @@ function PlatformStrip() {
 }
 const features = [
   {
-    number: "01",
     title: "Signals with substance.",
     copy: "Follow structured signals as match and market conditions develop. See the context behind the moment.",
-    label: "LIVE SIGNALS",
+    label: "Live signals",
     type: "signal",
   },
   {
-    number: "02",
     title: "The full match picture.",
     copy: "Read odds movement alongside match statistics, key events and the flow of the game.",
-    label: "MATCH ANALYSIS",
+    label: "Match analysis",
     type: "analysis",
   },
   {
-    number: "03",
     title: "A record you can review.",
     copy: "Revisit signals, review outcomes and track performance over time. Make reflection part of your process.",
-    label: "HISTORY & PERFORMANCE",
+    label: "History and performance",
     type: "history",
   },
 ];
@@ -111,7 +109,7 @@ function FeatureGraphic({ type }: { type: string }) {
   if (type === "signal")
     return (
       <div className="feature-graphic signal-graphic">
-        <div className="sample-label">EXAMPLE SIGNAL</div>
+        <div className="sample-label">A signal in context</div>
         <div className="signal-row">
           <span className="signal-icon">↗</span>
           <div>
@@ -137,7 +135,7 @@ function FeatureGraphic({ type }: { type: string }) {
   if (type === "analysis")
     return (
       <div className="feature-graphic analysis-graphic">
-        <div className="sample-label">CONTEXT, SIDE BY SIDE</div>
+        <div className="sample-label">The story of the match</div>
         <div className="analysis-row">
           <span>Match flow</span>
           <svg viewBox="0 0 170 35" aria-hidden="true">
@@ -164,7 +162,7 @@ function FeatureGraphic({ type }: { type: string }) {
     );
   return (
     <div className="feature-graphic history-graphic">
-      <div className="sample-label">A CLEARER REVIEW PROCESS</div>
+      <div className="sample-label">Everything worth revisiting</div>
       {[
         ["Signal history", "Recorded"],
         ["Match context", "Connected"],
@@ -181,9 +179,9 @@ function FeatureGraphic({ type }: { type: string }) {
 function FeatureSection() {
   return (
     <section id="platform" className="section container features-section">
-      <div className="section-intro">
+      <div className="section-intro" data-reveal>
         <div>
-          <Eyebrow>A MORE COMPLETE PERSPECTIVE</Eyebrow>
+          <Eyebrow>A more complete perspective</Eyebrow>
           <h2>
             Football moves fast.
             <br />
@@ -200,10 +198,9 @@ function FeatureSection() {
       </div>
       <div className="feature-grid">
         {features.map((feature) => (
-          <article className="feature" key={feature.number}>
+          <article className="feature" key={feature.title} data-reveal>
             <div className="feature-top">
               <span>{feature.label}</span>
-              <span>{feature.number}</span>
             </div>
             <FeatureGraphic type={feature.type} />
             <h3>{feature.title}</h3>
@@ -235,9 +232,9 @@ function HowItWorks() {
   ];
   return (
     <section className="section container how-section" id="how-it-works">
-      <div className="section-intro">
+      <div className="section-intro" data-reveal>
         <div>
-          <Eyebrow>FROM FIRST LOOK TO FULL CONTEXT</Eyebrow>
+          <Eyebrow>From first look to full context</Eyebrow>
           <h2>A straightforward way in.</h2>
         </div>
         <Link className="inline-link" href="/signup">
@@ -245,10 +242,9 @@ function HowItWorks() {
         </Link>
       </div>
       <div className="steps">
-        {steps.map((step, i) => (
-          <article key={step.title}>
-            <div className="step-number">
-              0{i + 1}
+        {steps.map((step) => (
+          <article key={step.title} data-reveal>
+            <div className="step-marker" aria-hidden="true">
               <span />
             </div>
             <h3>{step.title}</h3>
@@ -261,9 +257,9 @@ function HowItWorks() {
 }
 function SubscriptionCTA() {
   return (
-    <section className="membership container" id="membership">
+    <section className="membership container" id="membership" data-reveal>
       <div className="membership-copy">
-        <Eyebrow light>A BETTER VIEW STARTS HERE</Eyebrow>
+        <Eyebrow light>A better view starts here</Eyebrow>
         <h2>
           Bring more perspective
           <br />
@@ -285,15 +281,15 @@ function SubscriptionCTA() {
         </div>
       </div>
       <div className="membership-includes">
-        <span>YOUR ANALYTICAL WORKSPACE</span>
+        <span>Your analytical workspace</span>
         {[
           "SoccerTradeView match analysis",
           "Structured live match signals",
           "Odds charts and football context",
           "Signal history and performance",
-        ].map((item, index) => (
+        ].map((item) => (
           <div key={item}>
-            <span className="list-index">0{index + 1}</span>
+            <span className="list-dot" aria-hidden="true" />
             {item}
           </div>
         ))}
@@ -307,7 +303,7 @@ function SubscriptionCTA() {
 }
 function TrustNote() {
   return (
-    <section className="trust-note container">
+    <section className="trust-note container" data-reveal>
       <span className="trust-symbol">↗</span>
       <div>
         <h3>Built for analysis. Grounded in reality.</h3>
@@ -366,6 +362,7 @@ export function LandingPage() {
         Skip to content
       </a>
       <div id="top" />
+      <ExperienceMotion />
       <Header />
       <main id="main-content">
         <Hero />

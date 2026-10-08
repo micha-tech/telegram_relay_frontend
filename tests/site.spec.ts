@@ -111,10 +111,22 @@ for (const width of [320, 390, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     for (const path of ["/", "/signup", "/login"]) {
       await page.goto(path);
-      const overflow = await page.evaluate(
-        () => document.documentElement.scrollWidth > innerWidth,
-      );
-      expect(overflow, `overflow on ${path}`).toBe(false);
+      const overflow = await page.evaluate(() => ({
+        hasOverflow: document.documentElement.scrollWidth > innerWidth,
+        offenders: [...document.querySelectorAll<HTMLElement>("body *")]
+          .filter(
+            (element) => element.getBoundingClientRect().right > innerWidth,
+          )
+          .slice(0, 5)
+          .map(
+            (element) =>
+              `${element.tagName.toLowerCase()}.${element.className}`,
+          ),
+      }));
+      expect(overflow, `overflow on ${path}`).toEqual({
+        hasOverflow: false,
+        offenders: [],
+      });
     }
   });
 }

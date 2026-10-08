@@ -78,4 +78,5 @@ npm run format:check
 ```
 
 Unit tests exercise the authentication lifecycle with injected test-only adapters: session restoration, redirects, registration, email verification, loading, network/credential errors, retries and logout. Browser tests cover navigation, validation, missing-backend behavior, chart controls, five responsive widths, mobile navigation and accessibility. Production tests check server HTML, metadata, hydration, protected-route redirects and 404 pages.
+
 # telegram_relay_frontend
