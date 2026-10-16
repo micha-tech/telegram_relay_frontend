@@ -4,6 +4,7 @@ import { Arrow, Brand, ButtonLink, Eyebrow } from "../components/ui";
 import { Header } from "../components/Header";
 import { SoccerTradeViewSection } from "../components/SoccerTradeViewSection";
 import { ExperienceMotion } from "../components/ExperienceMotion";
+import { RunningPlayer } from "../components/RunningPlayer";
 
 function Hero() {
   return (
@@ -36,17 +37,7 @@ function Hero() {
         </div>
       </div>
       <figure className="hero-artwork hero-popout">
-        <div className="popout-stage">
-          <div className="popout-frame" aria-hidden="true" />
-          <Image
-            src="/football-striker-branded.png"
-            alt="3D footballer striking a ball, with his arms and boots extending beyond a tilted blue frame"
-            width={1254}
-            height={1254}
-            sizes="(max-width: 740px) 100vw, 62vw"
-            preload
-          />
-        </div>
+        <RunningPlayer />
         <figcaption>
           <span>The beautiful game, from a different perspective</span>
           <a href="#soccertradeview">

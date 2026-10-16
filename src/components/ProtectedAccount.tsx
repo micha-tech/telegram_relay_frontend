@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "../services/session";
 import { AccountPage } from "../views/AccountPage";
 import { Brand } from "./ui";
 
-export function ProtectedAccount() {
+export function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading, error, refresh } = useSession();
   const router = useRouter();
   const pathname = usePathname();
@@ -37,5 +38,13 @@ export function ProtectedAccount() {
         Checking your session…
       </main>
     );
-  return <AccountPage />;
+  return <>{children}</>;
+}
+
+export function ProtectedAccount() {
+  return (
+    <RequireAuth>
+      <AccountPage />
+    </RequireAuth>
+  );
 }

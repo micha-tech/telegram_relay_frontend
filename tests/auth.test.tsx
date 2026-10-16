@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { AuthPage } from "../src/views/AuthPage";
 import { AccountPage } from "../src/views/AccountPage";
+import { DashboardShell } from "../src/components/DashboardShell";
 import { ProtectedAccount } from "../src/components/ProtectedAccount";
 import { SessionProvider, useSession } from "../src/services/session";
 import { AuthError, authService } from "../src/services/auth";
@@ -200,7 +201,9 @@ describe("preserved authentication behavior", () => {
       .mockRejectedValueOnce(new TypeError("Network unavailable"))
       .mockResolvedValueOnce(undefined);
     mount(
-      <AccountPage />,
+      <DashboardShell>
+        <AccountPage />
+      </DashboardShell>,
       makeService({ getSession: vi.fn().mockResolvedValue(user), logout }),
     );
     await screen.findByRole("heading", { name: "Welcome, Test Analyst." });

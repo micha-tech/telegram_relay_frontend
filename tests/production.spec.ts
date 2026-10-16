@@ -53,6 +53,10 @@ test("protected and unknown paths survive direct production navigation", async (
   await expect(
     page.getByRole("heading", { name: "Welcome back" }),
   ).toBeVisible();
+  await page.goto("/dashboard/telegram-accounts");
+  await expect(page).toHaveURL(
+    /\/login\?next=%2Fdashboard%2Ftelegram-accounts$/,
+  );
   await page.goto("/unknown");
   await expect(
     page.getByRole("heading", { name: "This page isn’t in play." }),
