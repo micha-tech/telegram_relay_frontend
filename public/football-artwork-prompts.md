@@ -2,10 +2,6 @@
 
 Generated using the built-in image generation tool.
 
-## Running hero
-
-`football-run-cycle.png`: built-in generation prompt: six equal cells in one transparent horizontal strip showing successive phases of the same navy-clad football player running right and dribbling a white and navy soccer ball. White PRIME EDGE FOOTBALL jersey print, realistic stylized 3D, consistent scale and baseline, full bodies, six distinct run poses, no text labels, scenery, neon or frames. Used as a CSS sprite sequence with a pause control and reduced-motion still fallback.
-
 ## Branded shirts — current assets
 
 `football-striker-branded.png`, `football-standing-branded.png`, and `football-auth-branded.png` replace the active unbranded player artwork. Built-in image edit prompt: change only the jersey chest by adding exact white uppercase sponsor lettering “PRIME EDGE” on the first line and “FOOTBALL” on the second, bold modern sans serif, following fabric folds and torso perspective. Preserve face, pose, kit, ball, framing and background. Preserve genuine transparency on the two 3D cutouts; no glow or halos. Standing-player refinement: keep exact transparent silhouette, change only inside chest, preserve all transparent pixels. Auth illustration: retain phone interface and vector illustration style.
