@@ -1,125 +1,97 @@
-// Implement this boundary with the real Python/Telethon backend contract.
-// Requests reuse the website session cookie; no Telegram credentials or
-// session strings ever reach the browser.
+// Typed adapter for the Python/Telethon relay backend.
+//
+// Every request is authenticated with the JWT access token owned by
+// `src/services/api.ts`. Telegram login codes and two-step verification
+// passwords are sent once to the backend and are never persisted by the
+// browser.
+
+import { ApiError, apiBaseUrl, apiRequest } from "./api";
+import type { ApiErrorCode } from "./api";
+
+export { ApiError as TelegramApiError };
+export type { ApiErrorCode as TelegramErrorCode };
+
+export function telegramApiBaseUrl() {
+  return apiBaseUrl();
+}
 
 export type TelegramAccountStatus =
-  | "connected"
-  | "connecting"
-  | "disconnected"
-  | "reconnecting"
-  | "requires_attention"
-  | "unknown";
+  "pending" | "connected" | "disconnected" | "invalid" | "error";
 
-export type TelegramAuthStep =
-  | "phone"
-  | "code"
-  | "password"
-  | "connecting"
-  | "completed"
-  | "expired"
-  | "failed";
+export const TELEGRAM_ACCOUNT_STATUSES: TelegramAccountStatus[] = [
+  "pending",
+  "connected",
+  "disconnected",
+  "invalid",
+  "error",
+];
 
 export interface TelegramAccount {
   id: string;
-  telegramUserId: string;
-  username: string | null;
-  displayName: string | null;
   maskedPhoneNumber: string | null;
+  telegramUserId: string | null;
+  displayName: string | null;
+  username: string | null;
   status: TelegramAccountStatus;
   lastConnectedAt: string | null;
   lastActivityAt: string | null;
   lastError: string | null;
+  createdAt: string | null;
 }
 
-export interface TelegramConnection {
-  connectionId: string;
-  nextStep: TelegramAuthStep;
+export type TelegramChallengeStatus =
+  "code_sent" | "password_required" | "complete" | "failed" | "expired";
+
+export interface TelegramChallenge {
+  challengeId: string;
+  status: TelegramChallengeStatus;
   expiresAt: string | null;
-  retryAfterSeconds?: number;
-  message?: string;
-  account?: TelegramAccount;
 }
 
 export interface TelegramAccountHealth {
-  accountId: string;
   status: TelegramAccountStatus;
-  lastCheckedAt: string | null;
-  message: string | null;
+  sessionPresent: boolean;
+  workerActive: boolean | null;
+  lastConnectedAt: string | null;
+  lastActivityAt: string | null;
+  lastError: string | null;
+  checkedAt: string | null;
 }
 
-export type TelegramErrorCode =
-  | "unavailable"
-  | "network"
-  | "timeout"
-  | "validation"
-  | "invalid-phone"
-  | "invalid-code"
-  | "code-expired"
-  | "incorrect-password"
-  | "password-required"
-  | "flood-wait"
-  | "expired"
-  | "unauthorized"
-  | "not-found"
-  | "server";
+export interface TelegramAccountEvent {
+  kind: string;
+  detail: string;
+  createdAt: string | null;
+}
 
-export class TelegramApiError extends Error {
-  constructor(
-    public code: TelegramErrorCode,
-    message: string,
-    public retryAfterSeconds?: number,
-    public fieldErrors?: Record<string, string>,
-  ) {
-    super(message);
-    this.name = "TelegramApiError";
-  }
+export interface TelegramDialog {
+  peerId: string;
+  entityType: string;
+  username: string | null;
+  title: string | null;
+  sourceId: string | null;
+  destinationId: string | null;
 }
 
 export interface TelegramService {
-  startConnection(input: { phoneNumber: string }): Promise<TelegramConnection>;
-  sendCode(connectionId: string): Promise<TelegramConnection>;
-  verifyCode(connectionId: string, code: string): Promise<TelegramConnection>;
+  startConnection(input: { phoneNumber: string }): Promise<TelegramChallenge>;
+  verifyCode(challengeId: string, code: string): Promise<TelegramChallenge>;
   verifyPassword(
-    connectionId: string,
+    challengeId: string,
     password: string,
-  ): Promise<TelegramConnection>;
-  getConnection(connectionId: string): Promise<TelegramConnection>;
+  ): Promise<TelegramChallenge>;
   listAccounts(): Promise<TelegramAccount[]>;
   getAccount(accountId: string): Promise<TelegramAccount>;
-  reconnectAccount(accountId: string): Promise<TelegramConnection>;
-  disconnectAccount(accountId: string): Promise<void>;
   getAccountHealth(accountId: string): Promise<TelegramAccountHealth>;
-}
-
-const REQUEST_TIMEOUT_MS = 15000;
-const ACCOUNT_STATUSES: TelegramAccountStatus[] = [
-  "connected",
-  "connecting",
-  "disconnected",
-  "reconnecting",
-  "requires_attention",
-  "unknown",
-];
-const AUTH_STEPS: TelegramAuthStep[] = [
-  "phone",
-  "code",
-  "password",
-  "connecting",
-  "completed",
-  "expired",
-  "failed",
-];
-
-export function telegramApiBaseUrl() {
-  const raw = process.env.NEXT_PUBLIC_TELEGRAM_API_BASE_URL;
-  if (!raw) return null;
-  const trimmed = raw.trim().replace(/\/+$/, "");
-  return trimmed ? trimmed : null;
+  getAccountEvents(accountId: string): Promise<TelegramAccountEvent[]>;
+  getAccountDialogs(accountId: string): Promise<TelegramDialog[]>;
+  reconnectAccount(accountId: string): Promise<TelegramAccount>;
+  disconnectAccount(accountId: string): Promise<TelegramAccount>;
 }
 
 export function normalizeTelegramPhone(value: string): string | null {
   const cleaned = value.trim().replace(/[\s\-().]/g, "");
-  if (!/^\+\d{7,15}$/.test(cleaned)) return null;
+  if (!/^\+[1-9]\d{7,14}$/.test(cleaned)) return null;
   return cleaned;
 }
 
@@ -141,170 +113,131 @@ function readString(record: Record<string, unknown>, key: string) {
   return typeof value === "string" ? value : null;
 }
 
-function readOptionalNumber(record: Record<string, unknown>, key: string) {
-  const value = record[key];
-  return typeof value === "number" && Number.isFinite(value)
-    ? value
-    : undefined;
+function readId(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return null;
 }
 
-function parseAccountStatus(value: unknown): TelegramAccountStatus {
+function parseStatus(value: unknown): TelegramAccountStatus {
   return typeof value === "string" &&
-    ACCOUNT_STATUSES.includes(value as TelegramAccountStatus)
+    TELEGRAM_ACCOUNT_STATUSES.includes(value as TelegramAccountStatus)
     ? (value as TelegramAccountStatus)
-    : "unknown";
-}
-
-function parseAuthStep(value: unknown): TelegramAuthStep | null {
-  return typeof value === "string" &&
-    AUTH_STEPS.includes(value as TelegramAuthStep)
-    ? (value as TelegramAuthStep)
-    : null;
+    : "error";
 }
 
 function parseAccount(value: unknown): TelegramAccount {
   const record = asRecord(value);
-  if (!record || typeof record.id !== "string")
-    throw new TelegramApiError(
-      "server",
-      "The Telegram service returned an unexpected account response.",
-    );
+  const id = record ? readId(record.id) : null;
+  if (!record || !id)
+    throw new ApiError({
+      code: "server",
+      message: "The Telegram service returned an unexpected account response.",
+    });
   return {
-    id: record.id,
-    telegramUserId: readString(record, "telegramUserId") ?? record.id,
+    id,
+    maskedPhoneNumber: readString(record, "phone_masked"),
+    telegramUserId: readId(record.telegram_user_id),
+    displayName: readString(record, "display_name"),
     username: readString(record, "username"),
-    displayName: readString(record, "displayName"),
-    maskedPhoneNumber: readString(record, "maskedPhoneNumber"),
-    status: parseAccountStatus(record.status),
-    lastConnectedAt: readString(record, "lastConnectedAt"),
-    lastActivityAt: readString(record, "lastActivityAt"),
-    lastError: readString(record, "lastError"),
+    status: parseStatus(record.status),
+    lastConnectedAt: readString(record, "last_connected_at"),
+    lastActivityAt: readString(record, "last_activity_at"),
+    lastError: readString(record, "last_error"),
+    createdAt: readString(record, "created_at"),
   };
 }
 
-function parseConnection(value: unknown): TelegramConnection {
+function parseAccountList(payload: unknown): TelegramAccount[] {
+  const record = asRecord(payload);
+  const list = Array.isArray(payload)
+    ? payload
+    : record && Array.isArray(record.results)
+      ? record.results
+      : null;
+  if (!list)
+    throw new ApiError({
+      code: "server",
+      message: "The Telegram service returned an unexpected account list.",
+    });
+  return list.map(parseAccount);
+}
+
+const CHALLENGE_STATUSES: TelegramChallengeStatus[] = [
+  "code_sent",
+  "password_required",
+  "complete",
+  "failed",
+  "expired",
+];
+
+function parseChallenge(value: unknown): TelegramChallenge {
   const record = asRecord(value);
-  const nextStep = record ? parseAuthStep(record.nextStep) : null;
-  if (!record || typeof record.connectionId !== "string" || !nextStep)
-    throw new TelegramApiError(
-      "server",
-      "The Telegram service returned an unexpected connection response.",
-    );
-  const connection: TelegramConnection = {
-    connectionId: record.connectionId,
-    nextStep,
-    expiresAt: readString(record, "expiresAt"),
+  const challengeId = record ? readId(record.challenge_id) : null;
+  const status =
+    record && typeof record.status === "string"
+      ? (record.status as TelegramChallengeStatus)
+      : null;
+  if (
+    !record ||
+    !challengeId ||
+    !status ||
+    !CHALLENGE_STATUSES.includes(status)
+  )
+    throw new ApiError({
+      code: "server",
+      message:
+        "The Telegram service returned an unexpected connection response.",
+    });
+  return {
+    challengeId,
+    status,
+    expiresAt: readString(record, "expires_at"),
   };
-  const retryAfterSeconds = readOptionalNumber(record, "retryAfterSeconds");
-  if (retryAfterSeconds !== undefined)
-    connection.retryAfterSeconds = retryAfterSeconds;
-  const message = readString(record, "message");
-  if (message) connection.message = message;
-  const account = record.account;
-  if (asRecord(account)) connection.account = parseAccount(account);
-  return connection;
 }
 
 function parseHealth(value: unknown): TelegramAccountHealth {
   const record = asRecord(value);
-  if (!record || typeof record.accountId !== "string")
-    throw new TelegramApiError(
-      "server",
-      "The Telegram service returned an unexpected health response.",
-    );
+  if (!record)
+    throw new ApiError({
+      code: "server",
+      message: "The Telegram service returned an unexpected health response.",
+    });
+  const worker = record.worker_active;
   return {
-    accountId: record.accountId,
-    status: parseAccountStatus(record.status),
-    lastCheckedAt: readString(record, "lastCheckedAt"),
-    message: readString(record, "message"),
+    status: parseStatus(record.status),
+    sessionPresent: record.session_present === true,
+    workerActive: typeof worker === "boolean" ? worker : null,
+    lastConnectedAt: readString(record, "last_connected_at"),
+    lastActivityAt: readString(record, "last_activity_at"),
+    lastError: readString(record, "last_error"),
+    checkedAt: readString(record, "checked_at"),
   };
 }
 
-function parseErrorPayload(record: Record<string, unknown> | null): {
-  code?: string;
-  message?: string;
-  retryAfterSeconds?: number;
-} {
-  const nested = asRecord(record?.error) ?? record;
-  if (!nested) return {};
-  const result: {
-    code?: string;
-    message?: string;
-    retryAfterSeconds?: number;
-  } = {};
-  const code = readString(nested, "code");
-  const message = readString(nested, "message");
-  const retryAfterSeconds = readOptionalNumber(nested, "retryAfterSeconds");
-  if (code) result.code = code;
-  if (message) result.message = message;
-  if (retryAfterSeconds !== undefined)
-    result.retryAfterSeconds = retryAfterSeconds;
-  return result;
+function parseEvent(value: unknown): TelegramAccountEvent {
+  const record = asRecord(value);
+  return {
+    kind: (record && readString(record, "kind")) ?? "event",
+    detail: (record && readString(record, "detail")) ?? "",
+    createdAt: record ? readString(record, "created_at") : null,
+  };
 }
 
-const WIRE_CODE_MAP: Record<string, TelegramErrorCode> = {
-  invalid_phone: "invalid-phone",
-  phone_number_invalid: "invalid-phone",
-  invalid_code: "invalid-code",
-  phone_code_invalid: "invalid-code",
-  code_expired: "code-expired",
-  phone_code_expired: "code-expired",
-  expired: "expired",
-  password_required: "password-required",
-  session_password_needed: "password-required",
-  incorrect_password: "incorrect-password",
-  password_hash_invalid: "incorrect-password",
-  flood_wait: "flood-wait",
-  flood_sleep: "flood-wait",
-  rate_limited: "flood-wait",
-  unauthorized: "unauthorized",
-  unauthenticated: "unauthorized",
-  not_found: "not-found",
-  connection_not_found: "not-found",
-  account_not_found: "not-found",
-  validation: "validation",
-  server_error: "server",
-};
-
-function mapHttpError(
-  status: number,
-  payload: unknown,
-  retryAfterHeader: string | null,
-): TelegramApiError {
-  const details = parseErrorPayload(asRecord(payload));
-  let code: TelegramErrorCode;
-  if (details.code && WIRE_CODE_MAP[details.code]) {
-    code = WIRE_CODE_MAP[details.code];
-  } else if (status === 401) {
-    code = "unauthorized";
-  } else if (status === 404) {
-    code = "not-found";
-  } else if (status === 410) {
-    code = "expired";
-  } else if (status === 429) {
-    code = "flood-wait";
-  } else if (status === 400 || status === 422) {
-    code = "validation";
-  } else if (status >= 500) {
-    code = "server";
-  } else {
-    code = "validation";
-  }
-  let retryAfterSeconds = details.retryAfterSeconds;
-  if (retryAfterSeconds === undefined && retryAfterHeader) {
-    const parsed = Number(retryAfterHeader);
-    if (Number.isFinite(parsed)) retryAfterSeconds = parsed;
-  }
-  const error = new TelegramApiError(
-    code,
-    details.message ?? "The Telegram service rejected the request.",
-    retryAfterSeconds,
-  );
-  return error;
+function parseDialog(value: unknown): TelegramDialog {
+  const record = asRecord(value);
+  return {
+    peerId: (record && readId(record.peer_id)) ?? "",
+    entityType: (record && readString(record, "entity_type")) ?? "",
+    username: record ? readString(record, "username") : null,
+    title: record ? readString(record, "title") : null,
+    sourceId: record ? readId(record.source_id) : null,
+    destinationId: record ? readId(record.destination_id) : null,
+  };
 }
 
 export function telegramErrorMessage(error: unknown) {
-  if (error instanceof TelegramApiError) {
+  if (error instanceof ApiError) {
     if (error.code === "flood-wait" && error.retryAfterSeconds)
       return `Telegram is rate-limiting connection attempts. Try again in about ${error.retryAfterSeconds} seconds.`;
     return error.message;
@@ -314,153 +247,93 @@ export function telegramErrorMessage(error: unknown) {
   return "Something went wrong. Please try again.";
 }
 
-function unavailableError() {
-  return new TelegramApiError(
-    "unavailable",
-    "The Telegram service isn’t configured yet. The integration becomes available once the Telegram backend is connected to this deployment.",
-  );
-}
+const accountPath = (accountId: string) =>
+  `/telegram/accounts/${encodeURIComponent(accountId)}/`;
 
 export function createTelegramService(): TelegramService {
-  async function request<T>(
-    method: string,
-    path: string,
-    options: {
-      body?: unknown;
-      parse: (payload: unknown) => T;
-      empty?: T;
-    },
-  ): Promise<T> {
-    const baseUrl = telegramApiBaseUrl();
-    if (!baseUrl) throw unavailableError();
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    let response: Response;
-    try {
-      response = await fetch(`${baseUrl}${path}`, {
-        method,
-        credentials: "include",
-        headers: {
-          Accept: "application/json",
-          "X-Requested-With": "XMLHttpRequest",
-          ...(options.body !== undefined
-            ? { "Content-Type": "application/json" }
-            : {}),
-        },
-        body:
-          options.body !== undefined ? JSON.stringify(options.body) : undefined,
-        signal: controller.signal,
-      });
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError")
-        throw new TelegramApiError(
-          "timeout",
-          "The request timed out before the Telegram service responded.",
-        );
-      if (err instanceof TelegramApiError) throw err;
-      throw new TelegramApiError(
-        "network",
-        "We couldn’t reach the Telegram service. Check your connection and try again.",
-      );
-    } finally {
-      clearTimeout(timer);
-    }
-    let payload: unknown = null;
-    if (response.status !== 204) {
-      payload = await response.json().catch(() => null);
-    }
-    if (!response.ok)
-      throw mapHttpError(
-        response.status,
-        payload,
-        response.headers.get("Retry-After"),
-      );
-    if (response.status === 204 && options.empty !== undefined)
-      return options.empty;
-    return options.parse(payload);
-  }
-
   return {
-    startConnection(input) {
-      return request("POST", "/api/v1/telegram/connections", {
-        body: { phoneNumber: input.phoneNumber },
-        parse: parseConnection,
+    async startConnection(input) {
+      const payload = await apiRequest<unknown>("/telegram/auth/start", {
+        method: "POST",
+        auth: true,
+        body: { phone_number: input.phoneNumber },
       });
+      return parseChallenge(payload);
     },
-    sendCode(connectionId) {
-      return request(
-        "POST",
-        `/api/v1/telegram/connections/${encodeURIComponent(connectionId)}/send-code`,
-        { parse: parseConnection },
-      );
-    },
-    verifyCode(connectionId, code) {
-      return request(
-        "POST",
-        `/api/v1/telegram/connections/${encodeURIComponent(connectionId)}/verify-code`,
-        { body: { code }, parse: parseConnection },
-      );
-    },
-    verifyPassword(connectionId, password) {
-      const options = { body: { password }, parse: parseConnection };
-      return request(
-        "POST",
-        `/api/v1/telegram/connections/${encodeURIComponent(connectionId)}/verify-password`,
-        options,
-      );
-    },
-    getConnection(connectionId) {
-      return request(
-        "GET",
-        `/api/v1/telegram/connections/${encodeURIComponent(connectionId)}`,
-        { parse: parseConnection },
-      );
-    },
-    listAccounts() {
-      return request("GET", "/api/v1/telegram/accounts", {
-        parse: (payload) => {
-          const record = asRecord(payload);
-          const list = Array.isArray(payload)
-            ? payload
-            : record && Array.isArray(record.accounts)
-              ? record.accounts
-              : null;
-          if (!list)
-            throw new TelegramApiError(
-              "server",
-              "The Telegram service returned an unexpected account list.",
-            );
-          return list.map(parseAccount);
-        },
+    async verifyCode(challengeId, code) {
+      const payload = await apiRequest<unknown>("/telegram/auth/verify", {
+        method: "POST",
+        auth: true,
+        body: { challenge_id: challengeId, code },
       });
+      return parseChallenge(payload);
     },
-    getAccount(accountId) {
-      return request(
-        "GET",
-        `/api/v1/telegram/accounts/${encodeURIComponent(accountId)}`,
-        { parse: parseAccount },
-      );
+    async verifyPassword(challengeId, password) {
+      const payload = await apiRequest<unknown>("/telegram/auth/2fa", {
+        method: "POST",
+        auth: true,
+        body: { challenge_id: challengeId, password },
+      });
+      return parseChallenge(payload);
     },
-    reconnectAccount(accountId) {
-      return request(
-        "POST",
-        `/api/v1/telegram/accounts/${encodeURIComponent(accountId)}/reconnect`,
-        { parse: parseConnection },
-      );
+    async listAccounts() {
+      const payload = await apiRequest<unknown>("/telegram/accounts/", {
+        auth: true,
+      });
+      return parseAccountList(payload);
     },
-    disconnectAccount(accountId) {
-      return request(
-        "DELETE",
-        `/api/v1/telegram/accounts/${encodeURIComponent(accountId)}`,
-        { parse: () => undefined, empty: undefined },
-      );
+    async getAccount(accountId) {
+      const payload = await apiRequest<unknown>(accountPath(accountId), {
+        auth: true,
+      });
+      return parseAccount(payload);
     },
-    getAccountHealth(accountId) {
-      return request(
-        "GET",
-        `/api/v1/telegram/accounts/${encodeURIComponent(accountId)}/health`,
-        { parse: parseHealth },
+    async getAccountHealth(accountId) {
+      const payload = await apiRequest<unknown>(
+        `${accountPath(accountId)}health/`,
+        { auth: true },
       );
+      return parseHealth(payload);
+    },
+    async getAccountEvents(accountId) {
+      const payload = await apiRequest<unknown>(
+        `${accountPath(accountId)}events/`,
+        { auth: true },
+      );
+      if (!Array.isArray(payload))
+        throw new ApiError({
+          code: "server",
+          message:
+            "The Telegram service returned an unexpected activity response.",
+        });
+      return payload.map(parseEvent);
+    },
+    async getAccountDialogs(accountId) {
+      const payload = await apiRequest<unknown>(
+        `${accountPath(accountId)}dialogs/`,
+        { auth: true },
+      );
+      if (!Array.isArray(payload))
+        throw new ApiError({
+          code: "server",
+          message:
+            "The Telegram service returned an unexpected dialog response.",
+        });
+      return payload.map(parseDialog);
+    },
+    async reconnectAccount(accountId) {
+      const payload = await apiRequest<unknown>(
+        `${accountPath(accountId)}reconnect/`,
+        { method: "POST", auth: true },
+      );
+      return parseAccount(payload);
+    },
+    async disconnectAccount(accountId) {
+      const payload = await apiRequest<unknown>(
+        `${accountPath(accountId)}disconnect/`,
+        { method: "POST", auth: true },
+      );
+      return parseAccount(payload);
     },
   };
 }

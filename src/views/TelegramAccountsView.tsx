@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Arrow } from "../components/ui";
 import { TelegramAccountCard } from "../components/TelegramAccountCard";
 import { TelegramWizard } from "../components/TelegramWizard";
-import type { TelegramWizardInitial } from "../components/TelegramWizard";
 import {
   TelegramApiError,
   telegramErrorMessage,
@@ -26,9 +25,7 @@ export function TelegramAccountsView({
   const [notice, setNotice] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
   const [reconnectBusy, setReconnectBusy] = useState<string | null>(null);
-  const [wizard, setWizard] = useState<{
-    initial?: TelegramWizardInitial;
-  } | null>(null);
+  const [wizard, setWizard] = useState(false);
   const version = useRef(0);
 
   const load = useCallback(
@@ -64,11 +61,10 @@ export function TelegramAccountsView({
       ? {
           total: accounts.length,
           connected: accounts.filter((a) => a.status === "connected").length,
-          attention: accounts.filter((a) => a.status === "requires_attention")
-            .length,
-          connecting: accounts.filter(
-            (a) => a.status === "connecting" || a.status === "reconnecting",
+          attention: accounts.filter(
+            (a) => a.status === "invalid" || a.status === "error",
           ).length,
+          pending: accounts.filter((a) => a.status === "pending").length,
         }
       : null;
 
@@ -84,21 +80,9 @@ export function TelegramAccountsView({
     setActionError("");
     setNotice(null);
     try {
-      const connection = await service.reconnectAccount(account.id);
-      if (connection.nextStep === "completed") {
-        setNotice(connection.message ?? "The account was reconnected.");
-        await load(true);
-      } else {
-        setWizard({
-          initial: {
-            connectionId: connection.connectionId,
-            nextStep: connection.nextStep,
-            expiresAt: connection.expiresAt,
-            retryAfterSeconds: connection.retryAfterSeconds ?? null,
-            phoneMask: account.maskedPhoneNumber,
-          },
-        });
-      }
+      await service.reconnectAccount(account.id);
+      setNotice("The account was reconnected.");
+      await load(true);
     } catch (err) {
       setActionError(telegramErrorMessage(err));
     } finally {
@@ -120,7 +104,7 @@ export function TelegramAccountsView({
         <button
           type="button"
           className="button button-primary"
-          onClick={() => setWizard({})}
+          onClick={() => setWizard(true)}
         >
           Connect Telegram <Arrow />
         </button>
@@ -160,8 +144,8 @@ export function TelegramAccountsView({
             <span className="tg-stat-label">Needs attention</span>
           </div>
           <div className="tg-stat">
-            <span className="tg-stat-value">{stats.connecting}</span>
-            <span className="tg-stat-label">Connecting</span>
+            <span className="tg-stat-value">{stats.pending}</span>
+            <span className="tg-stat-label">Pending</span>
           </div>
         </section>
       )}
@@ -239,7 +223,7 @@ export function TelegramAccountsView({
             <button
               type="button"
               className="button button-primary"
-              onClick={() => setWizard({})}
+              onClick={() => setWizard(true)}
             >
               Connect Telegram <Arrow />
             </button>
@@ -269,8 +253,7 @@ export function TelegramAccountsView({
       {wizard && (
         <TelegramWizard
           service={service}
-          initial={wizard.initial}
-          onClose={() => setWizard(null)}
+          onClose={() => setWizard(false)}
           onConnected={onConnected}
         />
       )}

@@ -4,18 +4,18 @@ import { useState } from "react";
 import { telegramErrorMessage } from "../services/telegram";
 import type {
   TelegramAccount,
+  TelegramAccountEvent,
   TelegramAccountHealth,
   TelegramAccountStatus,
   TelegramService,
 } from "../services/telegram";
 
 const STATUS_LABELS: Record<TelegramAccountStatus, string> = {
+  pending: "Pending",
   connected: "Connected",
-  connecting: "Connecting",
   disconnected: "Disconnected",
-  reconnecting: "Reconnecting",
-  requires_attention: "Needs attention",
-  unknown: "Status unavailable",
+  invalid: "Session invalid",
+  error: "Error",
 };
 
 export function statusLabel(status: TelegramAccountStatus) {
@@ -52,15 +52,15 @@ export function TelegramAccountCard({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [health, setHealth] = useState<TelegramAccountHealth | null>(null);
+  const [events, setEvents] = useState<TelegramAccountEvent[] | null>(null);
   const headingId = `tg-account-${safeId(account.id)}`;
   const displayName =
-    account.displayName ??
-    (account.username ? `@${account.username}` : "Telegram account");
+    account.displayName ||
+    (account.username ? `@${account.username}` : "") ||
+    account.maskedPhoneNumber ||
+    "Telegram account";
   const canReconnect =
-    account.status === "disconnected" ||
-    account.status === "reconnecting" ||
-    account.status === "requires_attention" ||
-    account.status === "unknown";
+    account.status === "disconnected" || account.status === "error";
 
   async function disconnect() {
     if (busy) return;
@@ -88,6 +88,21 @@ export function TelegramAccountCard({
       setHealth(await service.getAccountHealth(account.id));
     } catch (err) {
       setHealth(null);
+      setError(telegramErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function loadEvents() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      setEvents(await service.getAccountEvents(account.id));
+    } catch (err) {
+      setEvents([]);
       setError(telegramErrorMessage(err));
     } finally {
       setBusy(false);
@@ -144,11 +159,40 @@ export function TelegramAccountCard({
           <b>Health check</b>
           <span>
             {STATUS_LABELS[health.status]}
-            {health.lastCheckedAt
-              ? ` · checked ${formatDate(health.lastCheckedAt)}`
+            {health.checkedAt
+              ? ` · checked ${formatDate(health.checkedAt)}`
               : ""}
           </span>
-          {health.message && <span>{health.message}</span>}
+          <span>
+            {health.sessionPresent
+              ? "Stored session present"
+              : "No stored session"}
+            {health.workerActive === null
+              ? ""
+              : health.workerActive
+                ? " · worker active"
+                : " · worker idle"}
+          </span>
+          {health.lastError && <span>{health.lastError}</span>}
+        </div>
+      )}
+      {events && (
+        <div className="tg-health" role="status">
+          <b>Recent activity</b>
+          {events.length === 0 ? (
+            <span>No activity recorded yet.</span>
+          ) : (
+            <ul className="tg-events">
+              {events.map((event, index) => (
+                <li key={`${event.kind}-${index}`}>
+                  <span>
+                    {event.detail || event.kind}
+                    {event.createdAt ? ` · ${formatDate(event.createdAt)}` : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
       <div className="tg-card-actions">
@@ -169,6 +213,14 @@ export function TelegramAccountCard({
           onClick={() => void checkHealth()}
         >
           {busy ? "Working…" : "Check health"}
+        </button>
+        <button
+          type="button"
+          className="button button-secondary tg-card-button"
+          disabled={busy}
+          onClick={() => void loadEvents()}
+        >
+          Recent activity
         </button>
         <button
           type="button"

@@ -1,228 +1,37 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import { FormField } from "./FormField";
 import {
-  TelegramApiError,
   maskTelegramPhone,
   normalizeTelegramPhone,
   telegramErrorMessage,
 } from "../services/telegram";
-import type {
-  TelegramAuthStep,
-  TelegramConnection,
-  TelegramService,
-} from "../services/telegram";
+import type { TelegramChallenge, TelegramService } from "../services/telegram";
 
-type WizardView =
-  "intro" | "phone" | "code" | "password" | "connecting" | "success";
+type WizardView = "intro" | "phone" | "code" | "password" | "success";
 
-export interface TelegramWizardInitial {
-  connectionId: string;
-  nextStep: TelegramAuthStep;
-  expiresAt?: string | null;
-  retryAfterSeconds?: number | null;
-  phoneMask?: string | null;
-}
-
-interface WizardState {
-  view: WizardView;
-  connectionId: string | null;
-  phoneMask: string | null;
-  expiresAt: string | null;
-  retryAfterSeconds: number | null;
-  error: string | null;
-  notice: string | null;
-  busy: boolean;
-  success: { displayName: string | null; username: string | null } | null;
-}
-
-type Action =
-  | { type: "busy"; busy: boolean }
-  | { type: "error"; message: string }
-  | { type: "clear-error" }
-  | { type: "notice"; message: string | null }
-  | { type: "connection"; connection: TelegramConnection; phoneMask?: string }
-  | { type: "expired" }
-  | { type: "restart"; view: WizardView }
-  | { type: "success"; displayName: string | null; username: string | null };
-
-function viewForStep(step: TelegramAuthStep): WizardView | null {
-  switch (step) {
-    case "phone":
-      return "phone";
-    case "code":
-      return "code";
-    case "password":
-      return "password";
-    case "connecting":
-      return "connecting";
-    case "completed":
-      return "success";
-    default:
-      return null;
-  }
-}
-
-function initialState(initial?: TelegramWizardInitial | null): WizardState {
-  const base: WizardState = {
-    view: "intro",
-    connectionId: null,
-    phoneMask: null,
-    expiresAt: null,
-    retryAfterSeconds: null,
-    error: null,
-    notice: null,
-    busy: false,
-    success: null,
-  };
-  if (!initial) return base;
-  const view = viewForStep(initial.nextStep);
-  if (!view)
-    return {
-      ...base,
-      error:
-        "This connection attempt can’t be resumed. Start again with your phone number.",
-    };
-  return {
-    ...base,
-    view,
-    connectionId: initial.connectionId,
-    phoneMask: initial.phoneMask ?? null,
-    expiresAt: initial.expiresAt ?? null,
-    retryAfterSeconds: initial.retryAfterSeconds ?? null,
-  };
-}
-
-function reducer(state: WizardState, action: Action): WizardState {
-  switch (action.type) {
-    case "busy":
-      return { ...state, busy: action.busy };
-    case "error":
-      return { ...state, error: action.message, busy: false, notice: null };
-    case "clear-error":
-      return { ...state, error: null };
-    case "notice":
-      return { ...state, notice: action.message, error: null };
-    case "restart":
-      return {
-        ...state,
-        view: action.view,
-        connectionId: null,
-        expiresAt: null,
-        retryAfterSeconds: null,
-        error: null,
-        notice: null,
-        busy: false,
-        success: null,
-      };
-    case "expired":
-      return {
-        ...state,
-        view: "phone",
-        connectionId: null,
-        expiresAt: null,
-        retryAfterSeconds: null,
-        busy: false,
-        success: null,
-        error:
-          "This connection attempt expired. Start again with your phone number.",
-      };
-    case "success":
-      return {
-        ...state,
-        view: "success",
-        busy: false,
-        error: null,
-        notice: null,
-        success: {
-          displayName: action.displayName,
-          username: action.username,
-        },
-      };
-    case "connection": {
-      const { connection } = action;
-      const phoneMask = action.phoneMask ?? state.phoneMask;
-      if (connection.nextStep === "expired")
-        return {
-          ...state,
-          view: "phone",
-          connectionId: null,
-          expiresAt: null,
-          retryAfterSeconds: null,
-          busy: false,
-          success: null,
-          error:
-            connection.message ??
-            "This connection attempt expired. Start again with your phone number.",
-        };
-      if (connection.nextStep === "failed")
-        return {
-          ...state,
-          view: "phone",
-          connectionId: null,
-          expiresAt: null,
-          retryAfterSeconds: null,
-          busy: false,
-          success: null,
-          error:
-            connection.message ??
-            "Telegram couldn’t complete this connection attempt. Start again with your phone number.",
-        };
-      if (connection.nextStep === "completed")
-        return {
-          ...state,
-          view: "success",
-          busy: false,
-          error: null,
-          notice: null,
-          phoneMask,
-          connectionId: connection.connectionId,
-          success: {
-            displayName: connection.account?.displayName ?? null,
-            username: connection.account?.username ?? null,
-          },
-        };
-      const view = viewForStep(connection.nextStep);
-      if (!view) return state;
-      if (view === "connecting" && state.view === "connecting")
-        return {
-          ...state,
-          phoneMask,
-          expiresAt: connection.expiresAt,
-          retryAfterSeconds: connection.retryAfterSeconds ?? null,
-        };
-      return {
-        ...state,
-        view,
-        connectionId: connection.connectionId,
-        phoneMask,
-        expiresAt: connection.expiresAt,
-        retryAfterSeconds: connection.retryAfterSeconds ?? null,
-        busy: false,
-        error: null,
-        success: null,
-      };
-    }
-    default:
-      return state;
-  }
-}
+const CODE_PATTERN = /^\d{4,12}$/;
 
 export function TelegramWizard({
   service,
-  initial,
   onClose,
   onConnected,
 }: {
   service: TelegramService;
-  initial?: TelegramWizardInitial | null;
   onClose: () => void;
   onConnected: () => void;
 }) {
-  const [state, dispatch] = useReducer(reducer, initial, initialState);
-  const [countdown, setCountdown] = useState(0);
+  const [view, setView] = useState<WizardView>("intro");
+  const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
+  const [phoneMask, setPhoneMask] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
   const dialogRef = useRef<HTMLDivElement>(null);
   const errorBox = useRef<HTMLDivElement>(null);
   const restoreFocus = useRef<HTMLElement | null>(null);
@@ -232,6 +41,15 @@ export function TelegramWizard({
     version.current++;
     onClose();
   }, [onClose]);
+
+  const restart = useCallback((next: WizardView) => {
+    setView(next);
+    setChallengeId(null);
+    setExpiresAt(null);
+    setError(null);
+    setNotice(null);
+    setBusy(false);
+  }, []);
 
   useEffect(() => {
     restoreFocus.current = document.activeElement as HTMLElement | null;
@@ -246,86 +64,160 @@ export function TelegramWizard({
   }, []);
 
   useEffect(() => {
-    if (state.error) errorBox.current?.focus();
-  }, [state.error]);
+    if (error) errorBox.current?.focus();
+  }, [error]);
 
   useEffect(() => {
-    if (state.view === "success") onConnected();
-  }, [state.view, onConnected]);
+    if (view === "success") onConnected();
+  }, [view, onConnected]);
 
   useEffect(() => {
-    const seconds = state.retryAfterSeconds ?? 0;
-    if (seconds <= 0 || state.view !== "code") {
-      setCountdown(0);
-      return;
-    }
-    setCountdown(seconds);
-    const timer = setInterval(
-      () => setCountdown((value) => (value <= 1 ? 0 : value - 1)),
-      1000,
-    );
-    return () => clearInterval(timer);
-  }, [state.retryAfterSeconds, state.view]);
-
-  useEffect(() => {
-    if (
-      !state.expiresAt ||
-      (state.view !== "code" && state.view !== "password")
-    )
-      return;
-    const delay = Date.parse(state.expiresAt) - Date.now();
+    if (!expiresAt || (view !== "code" && view !== "password")) return;
+    const delay = Date.parse(expiresAt) - Date.now();
     if (Number.isNaN(delay)) return;
     if (delay <= 0) {
-      dispatch({ type: "expired" });
+      restart("phone");
+      setError(
+        "This connection attempt expired. Start again with your phone number.",
+      );
       return;
     }
-    const timer = setTimeout(() => dispatch({ type: "expired" }), delay);
+    const timer = setTimeout(() => {
+      restart("phone");
+      setError(
+        "This connection attempt expired. Start again with your phone number.",
+      );
+    }, delay);
     return () => clearTimeout(timer);
-  }, [state.expiresAt, state.view]);
+  }, [expiresAt, view, restart]);
 
-  const checkStatus = useCallback(async () => {
-    const connectionId = state.connectionId;
-    if (!connectionId) return;
+  function applyChallenge(challenge: TelegramChallenge) {
+    setChallengeId(challenge.challengeId);
+    setExpiresAt(challenge.expiresAt);
+  }
+
+  function failChallenge(challenge: TelegramChallenge) {
+    restart("phone");
+    setError(
+      challenge.status === "expired"
+        ? "This connection attempt expired. Start again with your phone number."
+        : "Telegram couldn’t complete this connection attempt. Start again with your phone number.",
+    );
+  }
+
+  async function submitPhone(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    const raw = String(new FormData(event.currentTarget).get("phone") ?? "");
+    const normalized = normalizeTelegramPhone(raw);
+    if (!normalized) {
+      setError(
+        "Enter an international phone number with your country code, e.g. +44 7700 900123.",
+      );
+      return;
+    }
     const request = version.current;
+    setError(null);
+    setNotice(null);
+    setBusy(true);
     try {
-      const connection = await service.getConnection(connectionId);
+      const challenge = await service.startConnection({
+        phoneNumber: normalized,
+      });
       if (request !== version.current) return;
-      dispatch({ type: "connection", connection });
+      setPhoneNumber(normalized);
+      setPhoneMask(maskTelegramPhone(normalized));
+      applyChallenge(challenge);
+      if (challenge.status === "complete") setView("success");
+      else setView("code");
     } catch (err) {
       if (request !== version.current) return;
-      dispatch({ type: "error", message: telegramErrorMessage(err) });
+      setError(telegramErrorMessage(err));
+    } finally {
+      if (request === version.current) setBusy(false);
     }
-  }, [service, state.connectionId]);
+  }
 
-  useEffect(() => {
-    if (state.view !== "connecting" || !state.connectionId) return;
-    let cancelled = false;
-    let attempts = 0;
-    const connectionId = state.connectionId;
-    const poll = async () => {
-      if (cancelled || attempts >= 12) return;
-      attempts += 1;
-      try {
-        const connection = await service.getConnection(connectionId);
-        if (cancelled) return;
-        dispatch({ type: "connection", connection });
-      } catch {
-        if (cancelled) return;
-        if (attempts >= 12)
-          dispatch({
-            type: "error",
-            message:
-              "We couldn’t confirm the connection. Check the status before trying again.",
-          });
+  async function submitCode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy || !challengeId) return;
+    const form = event.currentTarget;
+    const code = String(new FormData(form).get("code") ?? "")
+      .trim()
+      .replace(/\s+/g, "");
+    if (!CODE_PATTERN.test(code)) {
+      setError("Enter the numeric code Telegram sent you (4–12 digits).");
+      return;
+    }
+    const request = version.current;
+    form.reset();
+    setError(null);
+    setBusy(true);
+    try {
+      const challenge = await service.verifyCode(challengeId, code);
+      if (request !== version.current) return;
+      applyChallenge(challenge);
+      if (challenge.status === "complete") setView("success");
+      else if (challenge.status === "password_required") setView("password");
+      else failChallenge(challenge);
+    } catch (err) {
+      if (request !== version.current) return;
+      setError(telegramErrorMessage(err));
+    } finally {
+      if (request === version.current) setBusy(false);
+    }
+  }
+
+  async function submitPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy || !challengeId) return;
+    const form = event.currentTarget;
+    const password = String(new FormData(form).get("password") ?? "");
+    if (!password) {
+      setError("Enter your Telegram two-step verification password.");
+      return;
+    }
+    const request = version.current;
+    form.reset();
+    setError(null);
+    setBusy(true);
+    try {
+      const challenge = await service.verifyPassword(challengeId, password);
+      if (request !== version.current) return;
+      applyChallenge(challenge);
+      if (challenge.status === "complete") setView("success");
+      else failChallenge(challenge);
+    } catch (err) {
+      if (request !== version.current) return;
+      setError(telegramErrorMessage(err));
+    } finally {
+      if (request === version.current) setBusy(false);
+    }
+  }
+
+  async function resendCode() {
+    if (busy || !phoneNumber) return;
+    const request = version.current;
+    setError(null);
+    setBusy(true);
+    try {
+      const challenge = await service.startConnection({
+        phoneNumber,
+      });
+      if (request !== version.current) return;
+      applyChallenge(challenge);
+      if (challenge.status === "complete") setView("success");
+      else {
+        setView("code");
+        setNotice("A new login code was sent.");
       }
-    };
-    void poll();
-    const timer = setInterval(() => void poll(), 2500);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [state.view, state.connectionId, service]);
+    } catch (err) {
+      if (request !== version.current) return;
+      setError(telegramErrorMessage(err));
+    } finally {
+      if (request === version.current) setBusy(false);
+    }
+  }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === "Escape") {
@@ -354,160 +246,11 @@ export function TelegramWizard({
     }
   }
 
-  async function recoverFromTimeout(request: number) {
-    const connectionId = state.connectionId;
-    if (connectionId) {
-      try {
-        const connection = await service.getConnection(connectionId);
-        if (request !== version.current) return;
-        dispatch({ type: "connection", connection });
-        return;
-      } catch {
-        if (request !== version.current) return;
-      }
-    }
-    dispatch({
-      type: "error",
-      message:
-        "We couldn’t confirm the result. Check the connection status before trying again.",
-    });
-  }
-
-  async function submitPhone(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (state.busy) return;
-    const raw = String(new FormData(event.currentTarget).get("phone") ?? "");
-    const phoneNumber = normalizeTelegramPhone(raw);
-    if (!phoneNumber) {
-      dispatch({
-        type: "error",
-        message:
-          "Enter an international phone number with your country code, e.g. +44 7700 900123.",
-      });
-      return;
-    }
-    const request = version.current;
-    dispatch({ type: "clear-error" });
-    dispatch({ type: "busy", busy: true });
-    try {
-      const connection = await service.startConnection({ phoneNumber });
-      if (request !== version.current) return;
-      dispatch({
-        type: "connection",
-        connection,
-        phoneMask: maskTelegramPhone(phoneNumber),
-      });
-    } catch (err) {
-      if (request !== version.current) return;
-      if (err instanceof TelegramApiError && err.code === "timeout") {
-        await recoverFromTimeout(request);
-        return;
-      }
-      dispatch({ type: "error", message: telegramErrorMessage(err) });
-    } finally {
-      if (request === version.current) dispatch({ type: "busy", busy: false });
-    }
-  }
-
-  async function submitCode(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (state.busy || !state.connectionId) return;
-    const form = event.currentTarget;
-    const code = String(new FormData(form).get("code") ?? "")
-      .trim()
-      .replace(/\s+/g, "");
-    if (!code) {
-      dispatch({
-        type: "error",
-        message: "Enter the code Telegram sent you.",
-      });
-      return;
-    }
-    const connectionId = state.connectionId;
-    const request = version.current;
-    form.reset();
-    dispatch({ type: "clear-error" });
-    dispatch({ type: "busy", busy: true });
-    try {
-      const connection = await service.verifyCode(connectionId, code);
-      if (request !== version.current) return;
-      dispatch({ type: "connection", connection });
-    } catch (err) {
-      if (request !== version.current) return;
-      if (err instanceof TelegramApiError && err.code === "timeout") {
-        await recoverFromTimeout(request);
-        return;
-      }
-      dispatch({ type: "error", message: telegramErrorMessage(err) });
-    } finally {
-      if (request === version.current) dispatch({ type: "busy", busy: false });
-    }
-  }
-
-  async function resendCode() {
-    if (state.busy || countdown > 0 || !state.connectionId) return;
-    const connectionId = state.connectionId;
-    const request = version.current;
-    dispatch({ type: "clear-error" });
-    dispatch({ type: "busy", busy: true });
-    try {
-      const connection = await service.sendCode(connectionId);
-      if (request !== version.current) return;
-      dispatch({
-        type: "connection",
-        connection,
-      });
-      dispatch({
-        type: "notice",
-        message: connection.message ?? "A new login code was sent.",
-      });
-    } catch (err) {
-      if (request !== version.current) return;
-      dispatch({ type: "error", message: telegramErrorMessage(err) });
-    } finally {
-      if (request === version.current) dispatch({ type: "busy", busy: false });
-    }
-  }
-
-  async function submitPassword(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (state.busy || !state.connectionId) return;
-    const form = event.currentTarget;
-    const password = String(new FormData(form).get("password") ?? "");
-    if (!password) {
-      dispatch({
-        type: "error",
-        message: "Enter your Telegram two-step verification password.",
-      });
-      return;
-    }
-    const connectionId = state.connectionId;
-    const request = version.current;
-    form.reset();
-    dispatch({ type: "clear-error" });
-    dispatch({ type: "busy", busy: true });
-    try {
-      const connection = await service.verifyPassword(connectionId, password);
-      if (request !== version.current) return;
-      dispatch({ type: "connection", connection });
-    } catch (err) {
-      if (request !== version.current) return;
-      if (err instanceof TelegramApiError && err.code === "timeout") {
-        await recoverFromTimeout(request);
-        return;
-      }
-      dispatch({ type: "error", message: telegramErrorMessage(err) });
-    } finally {
-      if (request === version.current) dispatch({ type: "busy", busy: false });
-    }
-  }
-
   const titles: Record<WizardView, string> = {
     intro: "Connect a Telegram account",
     phone: "What’s your Telegram number?",
     code: "Enter your code",
     password: "Two-step verification",
-    connecting: "Finishing connection…",
     success: "Account connected",
   };
 
@@ -546,19 +289,19 @@ export function TelegramWizard({
             </svg>
           </button>
         </div>
-        <h2 id="telegram-wizard-title">{titles[state.view]}</h2>
-        {state.notice && (
+        <h2 id="telegram-wizard-title">{titles[view]}</h2>
+        {notice && (
           <p role="status" className="form-notice">
-            {state.notice}
+            {notice}
           </p>
         )}
-        {state.error && (
+        {error && (
           <div className="form-alert" role="alert" tabIndex={-1} ref={errorBox}>
-            <span>{state.error}</span>
+            <span>{error}</span>
           </div>
         )}
 
-        {state.view === "intro" && (
+        {view === "intro" && (
           <div className="wizard-body">
             <p>
               Link a Telegram account to your workspace. Telegram will send you
@@ -576,18 +319,15 @@ export function TelegramWizard({
             <button
               type="button"
               className="button button-primary wizard-submit"
-              onClick={() => {
-                dispatch({ type: "clear-error" });
-                dispatch({ type: "restart", view: "phone" });
-              }}
+              onClick={() => restart("phone")}
             >
               Connect Telegram
             </button>
           </div>
         )}
 
-        {state.view === "phone" && (
-          <form onSubmit={submitPhone} noValidate aria-busy={state.busy}>
+        {view === "phone" && (
+          <form onSubmit={submitPhone} noValidate aria-busy={busy}>
             <div className="wizard-body">
               <p>
                 Enter the phone number of the Telegram account you want to
@@ -607,9 +347,9 @@ export function TelegramWizard({
               <button
                 type="submit"
                 className="button button-primary wizard-submit"
-                disabled={state.busy}
+                disabled={busy}
               >
-                {state.busy ? (
+                {busy ? (
                   <>
                     <span className="spinner" />
                     Sending code…
@@ -622,31 +362,29 @@ export function TelegramWizard({
           </form>
         )}
 
-        {state.view === "code" && (
-          <form onSubmit={submitCode} noValidate aria-busy={state.busy}>
+        {view === "code" && (
+          <form onSubmit={submitCode} noValidate aria-busy={busy}>
             <div className="wizard-body">
               <p>
                 Enter the code Telegram sent you
-                {state.phoneMask
-                  ? ` to the account ending ${state.phoneMask}`
-                  : ""}
-                . It usually arrives in the Telegram app.
+                {phoneMask ? ` to the account ending ${phoneMask}` : ""}. It
+                usually arrives in the Telegram app.
               </p>
               <FormField
                 label="Verification code"
                 name="code"
                 inputMode="numeric"
                 autoComplete="one-time-code"
-                maxLength={10}
+                maxLength={12}
                 required
                 autoFocus
               />
               <button
                 type="submit"
                 className="button button-primary wizard-submit"
-                disabled={state.busy}
+                disabled={busy}
               >
-                {state.busy ? (
+                {busy ? (
                   <>
                     <span className="spinner" />
                     Verifying…
@@ -660,17 +398,15 @@ export function TelegramWizard({
                   type="button"
                   className="text-button"
                   onClick={() => void resendCode()}
-                  disabled={state.busy || countdown > 0}
+                  disabled={busy}
                 >
-                  {countdown > 0
-                    ? `Resend code in ${countdown}s`
-                    : "Resend code"}
+                  Resend code
                 </button>
                 <button
                   type="button"
                   className="text-button"
-                  disabled={state.busy}
-                  onClick={() => dispatch({ type: "restart", view: "phone" })}
+                  disabled={busy}
+                  onClick={() => restart("phone")}
                 >
                   Use a different number
                 </button>
@@ -679,8 +415,8 @@ export function TelegramWizard({
           </form>
         )}
 
-        {state.view === "password" && (
-          <form onSubmit={submitPassword} noValidate aria-busy={state.busy}>
+        {view === "password" && (
+          <form onSubmit={submitPassword} noValidate aria-busy={busy}>
             <div className="wizard-body">
               <p>
                 Telegram protects this account with two-step verification. Enter
@@ -705,9 +441,9 @@ export function TelegramWizard({
               <button
                 type="submit"
                 className="button button-primary wizard-submit"
-                disabled={state.busy}
+                disabled={busy}
               >
-                {state.busy ? (
+                {busy ? (
                   <>
                     <span className="spinner" />
                     Verifying…
@@ -720,8 +456,8 @@ export function TelegramWizard({
                 <button
                   type="button"
                   className="text-button"
-                  disabled={state.busy}
-                  onClick={() => dispatch({ type: "restart", view: "phone" })}
+                  disabled={busy}
+                  onClick={() => restart("phone")}
                 >
                   Start over
                 </button>
@@ -730,43 +466,14 @@ export function TelegramWizard({
           </form>
         )}
 
-        {state.view === "connecting" && (
-          <div className="wizard-body wizard-progress">
-            <span className="spinner spinner-lg" aria-hidden="true" />
-            <p role="status">
-              Telegram is confirming the account. This usually takes a few
-              seconds.
-            </p>
-            <button
-              type="button"
-              className="button button-secondary wizard-submit"
-              onClick={() => void checkStatus()}
-            >
-              Check status
-            </button>
-            <button type="button" className="text-button" onClick={close}>
-              Cancel
-            </button>
-          </div>
-        )}
-
-        {state.view === "success" && (
+        {view === "success" && (
           <div className="wizard-body">
-            <p>
-              {state.success?.displayName || state.success?.username
-                ? `${
-                    state.success.displayName ?? state.success.username
-                  } is connected.`
-                : "Your Telegram account is now connected."}
-            </p>
-            {state.success?.username && (
-              <p className="wizard-handle">@{state.success.username}</p>
-            )}
+            <p>Your Telegram account is now connected.</p>
             <div className="wizard-alt-actions">
               <button
                 type="button"
                 className="button button-secondary"
-                onClick={() => dispatch({ type: "restart", view: "intro" })}
+                onClick={() => restart("intro")}
               >
                 Connect another
               </button>

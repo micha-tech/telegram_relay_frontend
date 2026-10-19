@@ -5,6 +5,7 @@ import {
   maskTelegramPhone,
   normalizeTelegramPhone,
 } from "../src/services/telegram";
+import { clearTokens, setTokens } from "../src/services/api";
 
 function jsonResponse(
   status: number,
@@ -16,25 +17,61 @@ function jsonResponse(
     status,
     headers: { get: (key: string) => headers[key.toLowerCase()] ?? null },
     json: async () => body,
+    text: async () => JSON.stringify(body),
   } as unknown as Response;
 }
 
-const connectionPayload = {
-  connectionId: "cn_1",
-  nextStep: "code",
-  expiresAt: "2026-01-02T10:05:00.000Z",
-  retryAfterSeconds: 30,
+function envelope(data: unknown, status = 200) {
+  return jsonResponse(status, { success: true, data, message: null });
+}
+
+function errorEnvelope(
+  status: number,
+  code: string,
+  message: string,
+  details?: unknown,
+) {
+  return jsonResponse(status, {
+    success: false,
+    data: null,
+    message,
+    error: { code, details: details ?? null },
+  });
+}
+
+const challenge = {
+  challenge_id: "11111111-1111-1111-1111-111111111111",
+  status: "code_sent",
+  expires_at: "2026-01-02T10:05:00.000Z",
+};
+
+const accountPayload = {
+  id: "22222222-2222-2222-2222-222222222222",
+  phone_masked: "+•••••••••0123",
+  telegram_user_id: 1001,
+  display_name: "Test Analyst",
+  username: "analyst",
+  status: "connected",
+  last_connected_at: null,
+  last_activity_at: null,
+  last_error: "",
+  created_at: "2026-01-01T10:00:00.000Z",
 };
 
 let fetchMock: ReturnType<typeof vi.fn>;
 const service = createTelegramService();
 
 beforeEach(() => {
-  vi.stubEnv("NEXT_PUBLIC_TELEGRAM_API_BASE_URL", "https://api.example.test/");
+  vi.stubEnv(
+    "NEXT_PUBLIC_TELEGRAM_API_BASE_URL",
+    "https://api.example.test/api/v1/",
+  );
   fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
+  clearTokens();
 });
 afterEach(() => {
+  clearTokens();
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
 });
@@ -48,108 +85,125 @@ describe("telegram api adapter", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("starts a connection with the normalized phone number and cookie credentials", async () => {
-    fetchMock.mockResolvedValue(jsonResponse(200, connectionPayload));
+  it("starts a challenge with a normalized phone number and bearer auth", async () => {
+    setTokens({ access: "test-access" });
+    fetchMock.mockResolvedValue(envelope(challenge, 202));
     const result = await service.startConnection({
       phoneNumber: "+447700900123",
     });
-    expect(result).toMatchObject({ connectionId: "cn_1", nextStep: "code" });
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("https://api.example.test/api/v1/telegram/connections");
-    expect(init.method).toBe("POST");
-    expect(init.credentials).toBe("include");
-    expect(JSON.parse(String(init.body))).toEqual({
-      phoneNumber: "+447700900123",
+    expect(result).toMatchObject({
+      challengeId: challenge.challenge_id,
+      status: "code_sent",
     });
-    expect((init.headers as Record<string, string>)["X-Requested-With"]).toBe(
-      "XMLHttpRequest",
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://api.example.test/api/v1/telegram/auth/start");
+    expect(init.method).toBe("POST");
+    expect(init.credentials).toBe("omit");
+    expect(JSON.parse(String(init.body))).toEqual({
+      phone_number: "+447700900123",
+    });
+    expect((init.headers as Record<string, string>).Authorization).toBe(
+      "Bearer test-access",
     );
   });
 
-  it("sends codes and passwords to the connection endpoints", async () => {
-    fetchMock.mockResolvedValue(
-      jsonResponse(200, { ...connectionPayload, nextStep: "completed" }),
-    );
-    await service.verifyCode("cn_1", "12345");
-    await service.verifyPassword("cn_1", "cloud-password");
+  it("sends codes and passwords to the challenge endpoints", async () => {
+    fetchMock
+      .mockResolvedValueOnce(envelope({ ...challenge, status: "complete" }))
+      .mockResolvedValueOnce(envelope({ ...challenge, status: "complete" }));
+    await service.verifyCode(challenge.challenge_id, "12345");
+    await service.verifyPassword(challenge.challenge_id, "cloud-password");
     const first = fetchMock.mock.calls[0] as [string, RequestInit];
     const second = fetchMock.mock.calls[1] as [string, RequestInit];
     expect(first[0]).toBe(
-      "https://api.example.test/api/v1/telegram/connections/cn_1/verify-code",
+      "https://api.example.test/api/v1/telegram/auth/verify",
     );
-    expect(JSON.parse(String(first[1].body))).toEqual({ code: "12345" });
-    expect(second[0]).toBe(
-      "https://api.example.test/api/v1/telegram/connections/cn_1/verify-password",
-    );
+    expect(JSON.parse(String(first[1].body))).toEqual({
+      challenge_id: challenge.challenge_id,
+      code: "12345",
+    });
+    expect(second[0]).toBe("https://api.example.test/api/v1/telegram/auth/2fa");
     expect(JSON.parse(String(second[1].body))).toEqual({
+      challenge_id: challenge.challenge_id,
       password: "cloud-password",
     });
   });
 
-  it("lists accounts from either an envelope or a bare array", async () => {
-    const record = {
-      id: "acc_1",
-      telegramUserId: "1001",
-      username: "analyst",
-      displayName: "Test Analyst",
-      maskedPhoneNumber: "+44 •••• 23",
-      status: "connected",
-      lastConnectedAt: null,
-      lastActivityAt: null,
-      lastError: null,
-    };
-    fetchMock.mockResolvedValueOnce(jsonResponse(200, { accounts: [record] }));
-    expect(await service.listAccounts()).toEqual([record]);
-    fetchMock.mockResolvedValueOnce(jsonResponse(200, [record]));
-    expect(await service.listAccounts()).toEqual([record]);
-  });
-
-  it("maps wire error codes and retry hints", async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse(400, {
-        error: { code: "invalid_code", message: "Bad code" },
+  it("unwraps the paginated account envelope", async () => {
+    fetchMock.mockResolvedValue(
+      envelope({
+        count: 1,
+        next: null,
+        previous: null,
+        results: [accountPayload],
       }),
     );
-    await expect(service.verifyCode("cn_1", "00000")).rejects.toMatchObject({
-      code: "invalid-code",
-      message: "Bad code",
-    });
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse(429, {
-        error: { code: "flood_wait", message: "Slow down" },
-      }),
-    );
-    await expect(service.sendCode("cn_1")).rejects.toMatchObject({
-      code: "flood-wait",
-    });
+    expect(await service.listAccounts()).toEqual([
+      {
+        id: accountPayload.id,
+        maskedPhoneNumber: accountPayload.phone_masked,
+        telegramUserId: "1001",
+        displayName: "Test Analyst",
+        username: "analyst",
+        status: "connected",
+        lastConnectedAt: null,
+        lastActivityAt: null,
+        lastError: "",
+        createdAt: accountPayload.created_at,
+      },
+    ]);
   });
 
-  it("uses the Retry-After header and falls back to status codes", async () => {
+  it("maps backend error envelopes to typed errors", async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse(429, { message: "Too many" }, { "retry-after": "45" }),
+      errorEnvelope(400, "invalid", "Request validation failed", {
+        phone_number: ["Use an E.164 phone number such as +15551234567"],
+      }),
     );
-    await expect(service.sendCode("cn_1")).rejects.toMatchObject({
-      code: "flood-wait",
-      retryAfterSeconds: 45,
+    await expect(
+      service.startConnection({ phoneNumber: "+1" }),
+    ).rejects.toMatchObject({
+      code: "validation",
+      message: "Use an E.164 phone number such as +15551234567",
     });
-    fetchMock.mockResolvedValueOnce(jsonResponse(401, null));
+    fetchMock.mockResolvedValueOnce(
+      errorEnvelope(
+        429,
+        "throttled",
+        "Request was throttled. Expected available in 42 seconds.",
+      ),
+    );
+    await expect(
+      service.startConnection({ phoneNumber: "+447700900123" }),
+    ).rejects.toMatchObject({ code: "flood-wait", retryAfterSeconds: 42 });
+    fetchMock.mockResolvedValueOnce(
+      errorEnvelope(
+        401,
+        "not_authenticated",
+        "Authentication credentials were not provided.",
+      ),
+    );
     await expect(service.listAccounts()).rejects.toMatchObject({
       code: "unauthorized",
     });
-    fetchMock.mockResolvedValueOnce(jsonResponse(410, null));
-    await expect(service.getConnection("cn_1")).rejects.toMatchObject({
-      code: "expired",
+    fetchMock.mockResolvedValueOnce(
+      errorEnvelope(404, "not_found", "Not found"),
+    );
+    await expect(service.getAccount("missing")).rejects.toMatchObject({
+      code: "not-found",
     });
-    fetchMock.mockResolvedValueOnce(jsonResponse(503, null));
+    fetchMock.mockResolvedValueOnce(
+      errorEnvelope(500, "INTERNAL_ERROR", "Internal server error"),
+    );
     await expect(service.listAccounts()).rejects.toMatchObject({
       code: "server",
     });
   });
 
-  it("rejects malformed connection payloads instead of trusting them", async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse(200, { nope: true }));
+  it("rejects malformed challenge payloads instead of trusting them", async () => {
+    fetchMock.mockResolvedValueOnce(envelope({ nope: true }, 202));
     await expect(
-      service.startConnection({ phoneNumber: "+1" }),
+      service.startConnection({ phoneNumber: "+447700900123" }),
     ).rejects.toBeInstanceOf(TelegramApiError);
   });
 

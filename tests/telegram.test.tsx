@@ -15,7 +15,7 @@ import { SessionProvider } from "../src/services/session";
 import { TelegramApiError } from "../src/services/telegram";
 import type {
   TelegramAccount,
-  TelegramConnection,
+  TelegramChallenge,
   TelegramService,
 } from "../src/services/telegram";
 import type { AuthService, User } from "../src/services/auth";
@@ -54,12 +54,12 @@ function authService(): AuthService {
   };
 }
 
-function connection(
-  overrides: Partial<TelegramConnection> = {},
-): TelegramConnection {
+function challenge(
+  overrides: Partial<TelegramChallenge> = {},
+): TelegramChallenge {
   return {
-    connectionId: "cn_1",
-    nextStep: "code",
+    challengeId: "ch_1",
+    status: "code_sent",
     expiresAt: null,
     ...overrides,
   };
@@ -71,11 +71,12 @@ function account(overrides: Partial<TelegramAccount> = {}): TelegramAccount {
     telegramUserId: "1001",
     username: "analyst",
     displayName: "Test Analyst",
-    maskedPhoneNumber: "+447 •••• 23",
+    maskedPhoneNumber: "+44 •••• 23",
     status: "connected",
     lastConnectedAt: "2026-01-02T10:00:00.000Z",
     lastActivityAt: "2026-01-02T10:05:00.000Z",
     lastError: null,
+    createdAt: "2026-01-01T10:00:00.000Z",
     ...overrides,
   };
 }
@@ -84,31 +85,30 @@ function telegramService(
   overrides: Partial<TelegramService> = {},
 ): TelegramService {
   return {
-    startConnection: vi
-      .fn()
-      .mockResolvedValue(connection({ nextStep: "code" })),
-    sendCode: vi.fn().mockResolvedValue(connection({ nextStep: "code" })),
-    verifyCode: vi
-      .fn()
-      .mockResolvedValue(connection({ nextStep: "completed" })),
+    startConnection: vi.fn().mockResolvedValue(challenge()),
+    verifyCode: vi.fn().mockResolvedValue(challenge({ status: "complete" })),
     verifyPassword: vi
       .fn()
-      .mockResolvedValue(connection({ nextStep: "completed" })),
-    getConnection: vi
-      .fn()
-      .mockResolvedValue(connection({ nextStep: "completed" })),
+      .mockResolvedValue(challenge({ status: "complete" })),
     listAccounts: vi.fn().mockResolvedValue([]),
     getAccount: vi.fn().mockResolvedValue(account()),
+    getAccountHealth: vi.fn().mockResolvedValue({
+      status: "connected",
+      sessionPresent: true,
+      workerActive: true,
+      lastConnectedAt: null,
+      lastActivityAt: null,
+      lastError: null,
+      checkedAt: "2026-01-02T10:00:00.000Z",
+    }),
+    getAccountEvents: vi.fn().mockResolvedValue([]),
+    getAccountDialogs: vi.fn().mockResolvedValue([]),
     reconnectAccount: vi
       .fn()
-      .mockResolvedValue(connection({ nextStep: "completed" })),
-    disconnectAccount: vi.fn().mockResolvedValue(undefined),
-    getAccountHealth: vi.fn().mockResolvedValue({
-      accountId: "acc_1",
-      status: "connected",
-      lastCheckedAt: "2026-01-02T10:00:00.000Z",
-      message: null,
-    }),
+      .mockResolvedValue(account({ status: "connected" })),
+    disconnectAccount: vi
+      .fn()
+      .mockResolvedValue(account({ status: "disconnected" })),
     ...overrides,
   };
 }
@@ -171,7 +171,7 @@ describe("telegram accounts view", () => {
     });
     await userEvent.type(screen.getByLabelText("Verification code"), "12345");
     await userEvent.click(screen.getByRole("button", { name: "Verify code" }));
-    expect(service.verifyCode).toHaveBeenCalledWith("cn_1", "12345");
+    expect(service.verifyCode).toHaveBeenCalledWith("ch_1", "12345");
     expect(
       await screen.findByRole("heading", { name: "Account connected" }),
     ).toBeTruthy();
@@ -186,7 +186,7 @@ describe("telegram accounts view", () => {
       telegramService({
         verifyCode: vi
           .fn()
-          .mockResolvedValue(connection({ nextStep: "password" })),
+          .mockResolvedValue(challenge({ status: "password_required" })),
       }),
     );
     await screen.findByText("No Telegram accounts yet");
@@ -204,7 +204,7 @@ describe("telegram accounts view", () => {
       screen.getByRole("button", { name: "Verify password" }),
     );
     expect(service.verifyPassword).toHaveBeenCalledWith(
-      "cn_1",
+      "ch_1",
       "cloud-password",
     );
     expect(
@@ -233,15 +233,13 @@ describe("telegram accounts view", () => {
       telegramService({
         verifyCode: vi
           .fn()
-          .mockResolvedValue(connection({ nextStep: "password" })),
-        verifyPassword: vi
-          .fn()
-          .mockRejectedValue(
-            new TelegramApiError(
-              "incorrect-password",
-              "That password is incorrect.",
-            ),
-          ),
+          .mockResolvedValue(challenge({ status: "password_required" })),
+        verifyPassword: vi.fn().mockRejectedValue(
+          new TelegramApiError({
+            code: "validation",
+            message: "That password is incorrect.",
+          }),
+        ),
       }),
     );
     await screen.findByText("No Telegram accounts yet");
@@ -267,16 +265,16 @@ describe("telegram accounts view", () => {
       ).disabled,
     ).toBe(false);
     expect(service.verifyPassword).toHaveBeenCalledWith(
-      "cn_1",
+      "ch_1",
       "wrong-password",
     );
   });
 
   it("prevents duplicate code submissions while a request is in flight", async () => {
-    let finish!: (value: TelegramConnection) => void;
+    let finish!: (value: TelegramChallenge) => void;
     const verifyCode = vi.fn(
       () =>
-        new Promise<TelegramConnection>((resolve) => {
+        new Promise<TelegramChallenge>((resolve) => {
           finish = resolve;
         }),
     );
@@ -289,28 +287,7 @@ describe("telegram accounts view", () => {
     expect((pending as HTMLButtonElement).disabled).toBe(true);
     await userEvent.click(pending);
     expect(verifyCode).toHaveBeenCalledTimes(1);
-    await act(async () => finish(connection({ nextStep: "completed" })));
-  });
-
-  it("completes when the backend confirms through status polling", async () => {
-    const service = mountView(
-      telegramService({
-        verifyCode: vi
-          .fn()
-          .mockResolvedValue(connection({ nextStep: "connecting" })),
-        getConnection: vi
-          .fn()
-          .mockResolvedValue(connection({ nextStep: "completed" })),
-      }),
-    );
-    await screen.findByText("No Telegram accounts yet");
-    await submitPhone();
-    await userEvent.type(screen.getByLabelText("Verification code"), "12345");
-    await userEvent.click(screen.getByRole("button", { name: "Verify code" }));
-    expect(
-      await screen.findByRole("heading", { name: "Account connected" }),
-    ).toBeTruthy();
-    expect(service.getConnection).toHaveBeenCalledWith("cn_1");
+    await act(async () => finish(challenge({ status: "complete" })));
   });
 
   it("renders multiple accounts with real statuses and summary counts", async () => {
@@ -322,7 +299,7 @@ describe("telegram accounts view", () => {
             id: "a2",
             displayName: "Second Account",
             username: null,
-            status: "requires_attention",
+            status: "invalid",
           }),
         ]),
       }),
@@ -350,7 +327,9 @@ describe("telegram accounts view", () => {
       telegramService({
         listAccounts: vi
           .fn()
-          .mockRejectedValueOnce(new TelegramApiError("network", "Offline"))
+          .mockRejectedValueOnce(
+            new TelegramApiError({ code: "network", message: "Offline" }),
+          )
           .mockResolvedValue([account()]),
       }),
     );
@@ -365,11 +344,12 @@ describe("telegram accounts view", () => {
   it("shows a configuration state when the backend url is missing", async () => {
     mountView(
       telegramService({
-        listAccounts: vi
-          .fn()
-          .mockRejectedValue(
-            new TelegramApiError("unavailable", "Not configured yet."),
-          ),
+        listAccounts: vi.fn().mockRejectedValue(
+          new TelegramApiError({
+            code: "unavailable",
+            message: "Not configured yet.",
+          }),
+        ),
       }),
     );
     expect(
@@ -402,7 +382,9 @@ describe("telegram accounts view", () => {
         listAccounts: vi.fn().mockResolvedValue([account()]),
         disconnectAccount: vi
           .fn()
-          .mockRejectedValue(new TelegramApiError("server", "Failed")),
+          .mockRejectedValue(
+            new TelegramApiError({ code: "server", message: "Failed" }),
+          ),
       }),
     );
     await screen.findByRole("heading", { name: "Test Analyst" });
@@ -415,34 +397,12 @@ describe("telegram accounts view", () => {
     expect(service.listAccounts).toHaveBeenCalledTimes(1);
   });
 
-  it("reuses the wizard when reconnecting needs a verification code", async () => {
+  it("reconnects in place and refreshes the list", async () => {
     const service = mountView(
       telegramService({
         listAccounts: vi
           .fn()
           .mockResolvedValue([account({ status: "disconnected" })]),
-        reconnectAccount: vi
-          .fn()
-          .mockResolvedValue(connection({ nextStep: "code" })),
-      }),
-    );
-    await screen.findByRole("heading", { name: "Test Analyst" });
-    await userEvent.click(screen.getByRole("button", { name: "Reconnect" }));
-    expect(
-      await screen.findByRole("heading", { name: "Enter your code" }),
-    ).toBeTruthy();
-    expect(service.reconnectAccount).toHaveBeenCalledWith("acc_1");
-  });
-
-  it("refreshes in place when reconnect completes immediately", async () => {
-    const service = mountView(
-      telegramService({
-        listAccounts: vi
-          .fn()
-          .mockResolvedValue([account({ status: "disconnected" })]),
-        reconnectAccount: vi
-          .fn()
-          .mockResolvedValue(connection({ nextStep: "completed" })),
       }),
     );
     await screen.findByRole("heading", { name: "Test Analyst" });
@@ -451,6 +411,50 @@ describe("telegram accounts view", () => {
     expect(screen.getByRole("status").textContent).toContain(
       "The account was reconnected.",
     );
+  });
+
+  it("reports a reconnect failure without hiding the account", async () => {
+    const service = mountView(
+      telegramService({
+        listAccounts: vi
+          .fn()
+          .mockResolvedValue([account({ status: "disconnected" })]),
+        reconnectAccount: vi.fn().mockRejectedValue(
+          new TelegramApiError({
+            code: "validation",
+            message: "No stored session, connect the account again",
+          }),
+        ),
+      }),
+    );
+    await screen.findByRole("heading", { name: "Test Analyst" });
+    await userEvent.click(screen.getByRole("button", { name: "Reconnect" }));
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "No stored session",
+    );
+    expect(screen.getByRole("heading", { name: "Test Analyst" })).toBeTruthy();
+    expect(service.listAccounts).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads recent activity on demand", async () => {
+    const service = mountView(
+      telegramService({
+        listAccounts: vi.fn().mockResolvedValue([account()]),
+        getAccountEvents: vi.fn().mockResolvedValue([
+          {
+            kind: "connected",
+            detail: "Signed in",
+            createdAt: "2026-01-02T10:00:00.000Z",
+          },
+        ]),
+      }),
+    );
+    await screen.findByRole("heading", { name: "Test Analyst" });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Recent activity" }),
+    );
+    expect(await screen.findByText(/Signed in/)).toBeTruthy();
+    expect(service.getAccountEvents).toHaveBeenCalledWith("acc_1");
   });
 });
 
