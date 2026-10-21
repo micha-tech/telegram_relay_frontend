@@ -80,6 +80,7 @@ export interface SignalSource {
   name: string | null;
   enabled: boolean;
   forwardEnabled: boolean;
+  captureAll: boolean;
   rules: SignalRules;
   backfillLimit: number;
   lastScrapedAt: string | null;
@@ -94,6 +95,7 @@ export interface SignalSourceInput {
   name?: string;
   enabled?: boolean;
   forwardEnabled?: boolean;
+  captureAll?: boolean;
   keywords: string[];
   blockedPhrases?: string[];
   minLength?: number;
@@ -264,6 +266,7 @@ function parseSource(value: unknown): SignalSource {
     name: readString(record, "name"),
     enabled: record.enabled === true,
     forwardEnabled: record.forward_enabled === true,
+    captureAll: record.capture_all === true,
     rules: parseRules(record.rules),
     backfillLimit: readNumber(record.backfill_limit, 200),
     lastScrapedAt: readString(record, "last_scraped_at"),
@@ -306,9 +309,17 @@ function toSourceBody(input: Partial<SignalSourceInput>) {
   if (input.enabled !== undefined) body.enabled = input.enabled;
   if (input.forwardEnabled !== undefined)
     body.forward_enabled = input.forwardEnabled;
+  if (input.captureAll !== undefined) body.capture_all = input.captureAll;
   if (input.backfillLimit !== undefined)
     body.backfill_limit = input.backfillLimit;
-  if (
+  if (input.captureAll) {
+    body.rules = {
+      keywords: [],
+      blocked_phrases: [],
+      min_length: 0,
+      case_sensitive: false,
+    };
+  } else if (
     input.keywords !== undefined ||
     input.blockedPhrases !== undefined ||
     input.minLength !== undefined ||

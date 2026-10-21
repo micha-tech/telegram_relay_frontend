@@ -128,6 +128,7 @@ function source(overrides: Partial<SignalSource> = {}): SignalSource {
     name: "Betting tips",
     enabled: true,
     forwardEnabled: false,
+    captureAll: false,
     rules: {
       keywords: ["over 2.5"],
       blockedPhrases: [],

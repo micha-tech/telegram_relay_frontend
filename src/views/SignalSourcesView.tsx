@@ -19,6 +19,7 @@ interface SourceForm {
   backfillLimit: string;
   forwardEnabled: boolean;
   forwardToPeerId: string;
+  captureAll: boolean;
 }
 
 const EMPTY_FORM: SourceForm = {
@@ -30,6 +31,7 @@ const EMPTY_FORM: SourceForm = {
   backfillLimit: "200",
   forwardEnabled: false,
   forwardToPeerId: "",
+  captureAll: false,
 };
 
 function parseList(value: string) {
@@ -135,12 +137,13 @@ export function SignalSourcesView({
       backfillLimit: String(source.backfillLimit),
       forwardEnabled: source.forwardEnabled,
       forwardToPeerId: source.forwardToId ?? "",
+      captureAll: source.captureAll,
     });
   }
 
   async function handleSave() {
     const keywords = parseList(form.keywords);
-    if (!keywords.length) {
+    if (!form.captureAll && !keywords.length) {
       setActionError("Add at least one keyword so the chat can be matched.");
       return;
     }
@@ -160,6 +163,7 @@ export function SignalSourcesView({
       backfillLimit: Number(form.backfillLimit) || 200,
       forwardEnabled: form.forwardEnabled,
       forwardToId: form.forwardEnabled ? form.forwardToPeerId || null : null,
+      captureAll: form.captureAll,
     };
     try {
       if (editingId) {
@@ -331,71 +335,115 @@ export function SignalSourcesView({
         )}
 
         <div className="sig-editor-grid">
-          <label className="sig-field">
-            <span>Source name</span>
-            <input
-              type="text"
-              value={form.name}
-              placeholder="Optional label"
-              onChange={(event) => updateForm({ name: event.target.value })}
-            />
-          </label>
-          <label className="sig-field sig-field-grow">
-            <span>Keywords</span>
-            <input
-              type="text"
-              value={form.keywords}
-              placeholder="over 2.5, first half, corners"
-              onChange={(event) => updateForm({ keywords: event.target.value })}
-            />
-          </label>
-        </div>
-
-        <div className="sig-editor-grid">
-          <label className="sig-field sig-field-grow">
-            <span>Blocked phrases</span>
-            <input
-              type="text"
-              value={form.blockedPhrases}
-              placeholder="Optional, comma separated"
-              onChange={(event) =>
-                updateForm({ blockedPhrases: event.target.value })
-              }
-            />
-          </label>
-          <label className="sig-field">
-            <span>Minimum length</span>
-            <input
-              type="number"
-              min={0}
-              value={form.minLength}
-              onChange={(event) =>
-                updateForm({ minLength: event.target.value })
-              }
-            />
-          </label>
-          <label className="sig-field">
-            <span>Backfill limit</span>
-            <input
-              type="number"
-              min={1}
-              value={form.backfillLimit}
-              onChange={(event) =>
-                updateForm({ backfillLimit: event.target.value })
-              }
-            />
-          </label>
           <label className="sig-check">
             <input
               type="checkbox"
-              checked={form.caseSensitive}
+              checked={form.captureAll}
               onChange={(event) =>
-                updateForm({ caseSensitive: event.target.checked })
+                updateForm({ captureAll: event.target.checked })
               }
             />
-            <span>Case sensitive</span>
+            <span>Capture all messages from this channel</span>
           </label>
         </div>
+
+        {!form.captureAll && (
+          <>
+            <div className="sig-editor-grid">
+              <label className="sig-field">
+                <span>Source name</span>
+                <input
+                  type="text"
+                  value={form.name}
+                  placeholder="Optional label"
+                  onChange={(event) => updateForm({ name: event.target.value })}
+                />
+              </label>
+              <label className="sig-field sig-field-grow">
+                <span>Keywords</span>
+                <input
+                  type="text"
+                  value={form.keywords}
+                  placeholder="over 2.5, first half, corners"
+                  onChange={(event) =>
+                    updateForm({ keywords: event.target.value })
+                  }
+                />
+              </label>
+            </div>
+
+            <div className="sig-editor-grid">
+              <label className="sig-field sig-field-grow">
+                <span>Blocked phrases</span>
+                <input
+                  type="text"
+                  value={form.blockedPhrases}
+                  placeholder="Optional, comma separated"
+                  onChange={(event) =>
+                    updateForm({ blockedPhrases: event.target.value })
+                  }
+                />
+              </label>
+              <label className="sig-field">
+                <span>Minimum length</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={form.minLength}
+                  onChange={(event) =>
+                    updateForm({ minLength: event.target.value })
+                  }
+                />
+              </label>
+              <label className="sig-field">
+                <span>Backfill limit</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={form.backfillLimit}
+                  onChange={(event) =>
+                    updateForm({ backfillLimit: event.target.value })
+                  }
+                />
+              </label>
+              <label className="sig-check">
+                <input
+                  type="checkbox"
+                  checked={form.caseSensitive}
+                  onChange={(event) =>
+                    updateForm({ caseSensitive: event.target.checked })
+                  }
+                />
+                <span>Case sensitive</span>
+              </label>
+            </div>
+          </>
+        )}
+
+        {form.captureAll && (
+          <div className="sig-editor-grid">
+            <label className="sig-field">
+              <span>Source name</span>
+              <input
+                type="text"
+                value={form.name}
+                placeholder="Optional label"
+                onChange={(event) => updateForm({ name: event.target.value })}
+              />
+            </label>
+            <label className="sig-field">
+              <span>Backfill limit</span>
+              <input
+                type="number"
+                min={1}
+                value={form.backfillLimit}
+                onChange={(event) =>
+                  updateForm({ backfillLimit: event.target.value })
+                }
+              />
+            </label>
+          </div>
+        )}
 
         <div className="sig-editor-grid">
           <label className="sig-check">
@@ -493,11 +541,15 @@ export function SignalSourcesView({
                 </div>
 
                 <div className="sig-terms">
-                  {source.rules.keywords.map((keyword) => (
-                    <span className="sig-term" key={keyword}>
-                      {keyword}
-                    </span>
-                  ))}
+                  {!source.captureAll &&
+                    source.rules.keywords.map((keyword) => (
+                      <span className="sig-term" key={keyword}>
+                        {keyword}
+                      </span>
+                    ))}
+                  {source.captureAll && (
+                    <span className="sig-term">Capture all messages</span>
+                  )}
                 </div>
 
                 <dl className="tg-card-details">
