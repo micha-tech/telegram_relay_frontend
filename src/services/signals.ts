@@ -73,11 +73,13 @@ export interface SignalSource {
   accountId: string;
   accountLabel: string | null;
   entityId: string;
+  forwardToId: string | null;
   chatTitle: string | null;
   chatUsername: string | null;
   peerId: string | null;
   name: string | null;
   enabled: boolean;
+  forwardEnabled: boolean;
   rules: SignalRules;
   backfillLimit: number;
   lastScrapedAt: string | null;
@@ -88,8 +90,10 @@ export interface SignalSource {
 export interface SignalSourceInput {
   accountId: string;
   entityId: string;
+  forwardToId?: string | null;
   name?: string;
   enabled?: boolean;
+  forwardEnabled?: boolean;
   keywords: string[];
   blockedPhrases?: string[];
   minLength?: number;
@@ -253,11 +257,13 @@ function parseSource(value: unknown): SignalSource {
     accountId,
     accountLabel: readString(record, "account_label"),
     entityId,
+    forwardToId: readId(record.forward_to),
     chatTitle: readString(record, "chat_title"),
     chatUsername: readString(record, "chat_username"),
     peerId: readId(record.peer_id),
     name: readString(record, "name"),
     enabled: record.enabled === true,
+    forwardEnabled: record.forward_enabled === true,
     rules: parseRules(record.rules),
     backfillLimit: readNumber(record.backfill_limit, 200),
     lastScrapedAt: readString(record, "last_scraped_at"),
@@ -295,8 +301,11 @@ function toSourceBody(input: Partial<SignalSourceInput>) {
   const body: Record<string, unknown> = {};
   if (input.accountId) body.account = input.accountId;
   if (input.entityId) body.entity = input.entityId;
+  if (input.forwardToId !== undefined) body.forward_to = input.forwardToId;
   if (input.name !== undefined) body.name = input.name;
   if (input.enabled !== undefined) body.enabled = input.enabled;
+  if (input.forwardEnabled !== undefined)
+    body.forward_enabled = input.forwardEnabled;
   if (input.backfillLimit !== undefined)
     body.backfill_limit = input.backfillLimit;
   if (

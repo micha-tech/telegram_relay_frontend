@@ -121,11 +121,13 @@ function source(overrides: Partial<SignalSource> = {}): SignalSource {
     accountId: "7",
     accountLabel: "Analyst",
     entityId: "3",
+    forwardToId: null,
     chatTitle: "Betting tips",
     chatUsername: "tips",
     peerId: "-1001234567890",
     name: "Betting tips",
     enabled: true,
+    forwardEnabled: false,
     rules: {
       keywords: ["over 2.5"],
       blockedPhrases: [],

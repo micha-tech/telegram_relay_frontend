@@ -17,6 +17,8 @@ interface SourceForm {
   minLength: string;
   caseSensitive: boolean;
   backfillLimit: string;
+  forwardEnabled: boolean;
+  forwardToPeerId: string;
 }
 
 const EMPTY_FORM: SourceForm = {
@@ -26,6 +28,8 @@ const EMPTY_FORM: SourceForm = {
   minLength: "0",
   caseSensitive: false,
   backfillLimit: "200",
+  forwardEnabled: false,
+  forwardToPeerId: "",
 };
 
 function parseList(value: string) {
@@ -129,6 +133,8 @@ export function SignalSourcesView({
       minLength: String(source.rules.minLength),
       caseSensitive: source.rules.caseSensitive,
       backfillLimit: String(source.backfillLimit),
+      forwardEnabled: source.forwardEnabled,
+      forwardToPeerId: source.forwardToId ?? "",
     });
   }
 
@@ -152,6 +158,8 @@ export function SignalSourcesView({
       minLength: Number(form.minLength) || 0,
       caseSensitive: form.caseSensitive,
       backfillLimit: Number(form.backfillLimit) || 200,
+      forwardEnabled: form.forwardEnabled,
+      forwardToId: form.forwardEnabled ? form.forwardToPeerId || null : null,
     };
     try {
       if (editingId) {
@@ -387,6 +395,32 @@ export function SignalSourcesView({
             />
             <span>Case sensitive</span>
           </label>
+        </div>
+
+        <div className="sig-editor-grid">
+          <label className="sig-check">
+            <input
+              type="checkbox"
+              checked={form.forwardEnabled}
+              onChange={(event) =>
+                updateForm({ forwardEnabled: event.target.checked })
+              }
+            />
+            <span>Forward signals to another chat</span>
+          </label>
+          {form.forwardEnabled && (
+            <label className="sig-field sig-field-grow">
+              <span>Destination chat peer ID</span>
+              <input
+                type="text"
+                value={form.forwardToPeerId}
+                placeholder="Enter destination peer ID (e.g. -1001234567890)"
+                onChange={(event) =>
+                  updateForm({ forwardToPeerId: event.target.value })
+                }
+              />
+            </label>
+          )}
         </div>
 
         <div className="sig-editor-actions">
