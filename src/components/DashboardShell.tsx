@@ -8,10 +8,26 @@ import { authErrorMessage } from "../services/auth";
 import { useSession } from "../services/session";
 import { Brand } from "./ui";
 
-const NAV_ITEMS = [
+interface NavItem {
+  href: string;
+  label: string;
+  adminOnly?: boolean;
+}
+
+const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Account" },
-  { href: "/dashboard/telegram-accounts", label: "Telegram Accounts" },
-] as const;
+  { href: "/dashboard/signals", label: "Signals" },
+  {
+    href: "/dashboard/telegram-accounts",
+    label: "Telegram Accounts",
+    adminOnly: true,
+  },
+  {
+    href: "/dashboard/signal-sources",
+    label: "Signal Sources",
+    adminOnly: true,
+  },
+];
 
 export function DashboardShell({ children }: { children: ReactNode }) {
   const { user, setUser, service } = useSession();
@@ -38,7 +54,9 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         <div className="dashboard-header-inner">
           <Brand />
           <nav className="dashboard-nav" aria-label="Dashboard">
-            {NAV_ITEMS.map((item) => (
+            {NAV_ITEMS.filter(
+              (item) => !item.adminOnly || user?.isSuperAdmin === true,
+            ).map((item) => (
               <Link
                 key={item.href}
                 href={item.href}

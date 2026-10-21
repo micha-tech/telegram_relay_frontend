@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { RequireAuth } from "../../../components/ProtectedAccount";
+import { RequireSuperAdmin } from "../../../components/ProtectedAccount";
 import { TelegramAccountsView } from "../../../views/TelegramAccountsView";
 
 export const metadata: Metadata = {
@@ -9,8 +9,8 @@ export const metadata: Metadata = {
 
 export default function TelegramAccountsPage() {
   return (
-    <RequireAuth>
+    <RequireSuperAdmin>
       <TelegramAccountsView />
-    </RequireAuth>
+    </RequireSuperAdmin>
   );
 }

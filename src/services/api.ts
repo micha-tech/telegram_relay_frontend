@@ -97,6 +97,7 @@ export interface ApiRequestOptions {
   body?: unknown;
   auth?: boolean;
   timeoutMs?: number;
+  params?: Record<string, string | number | boolean | null | undefined>;
 }
 
 export async function apiRequest<T = unknown>(
@@ -112,6 +113,22 @@ export async function apiRequest<T = unknown>(
     if (refreshed) response = await send(base, path, options, auth);
   }
   return unwrap<T>(response);
+}
+
+function buildUrl(
+  base: string,
+  path: string,
+  params?: ApiRequestOptions["params"],
+): string {
+  if (!params) return `${base}${path}`;
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === "") continue;
+    search.set(key, String(value));
+  }
+  const query = search.toString();
+  if (!query) return `${base}${path}`;
+  return `${base}${path}${path.includes("?") ? "&" : "?"}${query}`;
 }
 
 async function send(
@@ -130,7 +147,7 @@ async function send(
   const token = auth ? getAccessToken() : null;
   if (token) headers.Authorization = `Bearer ${token}`;
   try {
-    return await fetch(`${base}${path}`, {
+    return await fetch(buildUrl(base, path, options.params), {
       method: options.method ?? "GET",
       credentials: "omit",
       headers,

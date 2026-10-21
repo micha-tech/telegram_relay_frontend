@@ -2,8 +2,8 @@
 //
 // SimpleJWT bearer tokens are stored in localStorage (per the product
 // decision) and refreshed automatically by `src/services/api.ts`. The
-// backend user is `{ id, email }`; a display name is derived from the email
-// because the deployed backend has no name field yet.
+// backend user is `{ id, email, is_superuser }`; a display name is derived
+// from the email because the deployed backend has no name field yet.
 
 import {
   ApiError,
@@ -19,6 +19,7 @@ export interface User {
   id: string | number;
   name: string;
   email: string;
+  isSuperAdmin: boolean;
 }
 
 export interface LoginInput {
@@ -86,7 +87,7 @@ function toUser(payload: unknown, fallbackName?: string): User {
       "The authentication service returned an unexpected response.",
     );
   const name = fallbackName?.trim() || nameFromEmail(email);
-  return { id, name, email };
+  return { id, name, email, isSuperAdmin: record?.is_superuser === true };
 }
 
 function applyTokens(record: Record<string, unknown> | null) {

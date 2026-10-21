@@ -41,6 +41,31 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+function SuperAdminOnly({ children }: { children: ReactNode }) {
+  const { user } = useSession();
+  if (!user?.isSuperAdmin)
+    return (
+      <main className="state-page">
+        <Brand />
+        <h1>Super administrator access required</h1>
+        <p>
+          Telegram accounts and signal sources are limited to super
+          administrators. The signals feed is available on your dashboard.
+        </p>
+        <Link href="/dashboard/signals">Go to signals</Link>
+      </main>
+    );
+  return <>{children}</>;
+}
+
+export function RequireSuperAdmin({ children }: { children: ReactNode }) {
+  return (
+    <RequireAuth>
+      <SuperAdminOnly>{children}</SuperAdminOnly>
+    </RequireAuth>
+  );
+}
+
 export function ProtectedAccount() {
   return (
     <RequireAuth>

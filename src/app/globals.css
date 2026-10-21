@@ -3775,3 +3775,216 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+.sig-page {
+  width: min(960px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 44px 0 72px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.sig-filters {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 12px;
+}
+.sig-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.sig-field > span {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.sig-field input,
+.sig-field select {
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+}
+.sig-field input::placeholder {
+  color: var(--faint);
+}
+.sig-check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12px;
+  color: var(--muted);
+  padding-top: 22px;
+}
+.sig-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--blue);
+}
+.sig-list-section {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.sig-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sig-item {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 4px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sig-item-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+}
+.sig-source {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8bcced;
+}
+.sig-time {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--faint);
+  white-space: nowrap;
+}
+.sig-text {
+  font-size: 14px;
+  line-height: 1.75;
+  color: #e4ecf9;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.sig-item-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.sig-author {
+  font-size: 12px;
+  color: var(--muted);
+}
+.sig-terms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sig-term {
+  border: 1px solid #1f5c40;
+  background: #0d2a1f;
+  color: #a7ecd0;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+}
+.sig-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.sig-pagination .button {
+  min-height: 40px;
+  padding: 0 18px;
+  font-size: 12px;
+  gap: 10px;
+}
+.sig-editor {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 4px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.sig-editor h2 {
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.4px;
+}
+.sig-editor-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-end;
+}
+.sig-editor-grid .sig-field {
+  flex: 1 1 190px;
+}
+.sig-editor-grid .sig-field-grow {
+  flex: 3 1 280px;
+}
+.sig-editor-actions {
+  display: flex;
+  gap: 12px;
+}
+.sig-source-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.sig-source-card {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 4px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.sig-source-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.sig-source-head h3 {
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.2px;
+  margin-bottom: 5px;
+}
+.sig-source-head p {
+  font-size: 12px;
+  color: var(--muted);
+}
+@media (max-width: 860px) {
+  .sig-filters {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 740px) {
+  .sig-page {
+    width: calc(100% - 32px);
+    padding: 30px 0 56px;
+  }
+  .sig-filters {
+    grid-template-columns: 1fr;
+  }
+  .sig-editor {
+    padding: 18px;
+  }
+}

@@ -41,6 +41,7 @@ const user: User = {
   id: "fixture",
   name: "Test Analyst",
   email: "test@example.com",
+  isSuperAdmin: false,
 };
 function makeService(overrides: Partial<AuthService> = {}): AuthService {
   return {

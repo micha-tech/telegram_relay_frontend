@@ -43,7 +43,12 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-const user: User = { id: "fixture", name: "Test Analyst", email: "a@b.co" };
+const user: User = {
+  id: "fixture",
+  name: "Test Analyst",
+  email: "a@b.co",
+  isSuperAdmin: true,
+};
 
 function authService(): AuthService {
   return {
