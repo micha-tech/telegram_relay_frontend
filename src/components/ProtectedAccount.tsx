@@ -41,16 +41,18 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-function SuperAdminOnly({ children }: { children: ReactNode }) {
+function AdminOnly({ children }: { children: ReactNode }) {
   const { user } = useSession();
-  if (!user?.isSuperAdmin)
+  if (!user?.isAdmin)
     return (
       <main className="state-page">
         <Brand />
-        <h1>Super administrator access required</h1>
+        <h1>Workspace administrator access required</h1>
         <p>
-          Telegram accounts and signal sources are limited to super
-          administrators. The signals feed is available on your dashboard.
+          Telegram accounts, signal sources and workspace settings are limited
+          to workspace administrators. Ask the owner of{" "}
+          {user?.tenant?.name ?? "your workspace"} for an admin role, or read
+          the signals feed on your dashboard.
         </p>
         <Link href="/dashboard/signals">Go to signals</Link>
       </main>
@@ -58,13 +60,41 @@ function SuperAdminOnly({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-export function RequireSuperAdmin({ children }: { children: ReactNode }) {
+function OwnerOnly({ children }: { children: ReactNode }) {
+  const { user } = useSession();
+  if (!user?.isAdmin || user.role !== "owner")
+    return (
+      <main className="state-page">
+        <Brand />
+        <h1>Workspace owner access required</h1>
+        <p>
+          Only the owner of {user?.tenant?.name ?? "this workspace"} can change
+          its name or manage administrators.
+        </p>
+        <Link href="/dashboard/workspace">Back to workspace</Link>
+      </main>
+    );
+  return <>{children}</>;
+}
+
+export function RequireAdmin({ children }: { children: ReactNode }) {
   return (
     <RequireAuth>
-      <SuperAdminOnly>{children}</SuperAdminOnly>
+      <AdminOnly>{children}</AdminOnly>
     </RequireAuth>
   );
 }
+
+export function RequireOwner({ children }: { children: ReactNode }) {
+  return (
+    <RequireAuth>
+      <OwnerOnly>{children}</OwnerOnly>
+    </RequireAuth>
+  );
+}
+
+/** @deprecated Use RequireAdmin — access is per workspace now. */
+export const RequireSuperAdmin = RequireAdmin;
 
 export function ProtectedAccount() {
   return (

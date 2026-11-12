@@ -10,7 +10,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { SignalsView } from "../src/views/SignalsView";
 import { SignalSourcesView } from "../src/views/SignalSourcesView";
-import { RequireSuperAdmin } from "../src/components/ProtectedAccount";
+import { RequireAdmin } from "../src/components/ProtectedAccount";
 import { SessionProvider } from "../src/services/session";
 import type {
   Signal,
@@ -55,14 +55,28 @@ const analyst: User = {
   id: "1",
   name: "Test Analyst",
   email: "analyst@example.com",
-  isSuperAdmin: true,
+  role: "owner",
+  tenant: {
+    id: "tenant-1",
+    name: "Test Workspace",
+    slug: "test-workspace",
+  },
+  isAdmin: true,
+  isSuperuser: false,
 };
 
 const viewer: User = {
   id: "2",
   name: "Test Viewer",
   email: "viewer@example.com",
-  isSuperAdmin: false,
+  role: "member",
+  tenant: {
+    id: "tenant-1",
+    name: "Test Workspace",
+    slug: "test-workspace",
+  },
+  isAdmin: false,
+  isSuperuser: false,
 };
 
 function authService(user: User): AuthService {
@@ -85,7 +99,6 @@ function signal(overrides: Partial<Signal> = {}): Signal {
     messageId: "512",
     text: "Over 2.5 goals confirmed",
     author: "Tipster",
-    matchedTerms: ["over 2.5"],
     sentAt: "2026-01-02T10:00:00.000Z",
     createdAt: "2026-01-02T10:00:05.000Z",
     ...overrides,
@@ -128,13 +141,6 @@ function source(overrides: Partial<SignalSource> = {}): SignalSource {
     name: "Betting tips",
     enabled: true,
     forwardEnabled: false,
-    captureAll: false,
-    rules: {
-      keywords: ["over 2.5"],
-      blockedPhrases: [],
-      minLength: 0,
-      caseSensitive: false,
-    },
     backfillLimit: 200,
     lastScrapedAt: null,
     lastSignalAt: "2026-01-02T10:00:00.000Z",
@@ -205,7 +211,7 @@ function telegramService(
 }
 
 describe("signals feed", () => {
-  it("shows the summary and the matched messages", async () => {
+  it("shows the summary and the captured messages", async () => {
     const service = signalsService();
     render(<SignalsView service={service} />);
     await waitFor(() =>
@@ -259,7 +265,7 @@ describe("signal sources administration", () => {
     expect(screen.getByText("Enabled")).toBeTruthy();
   });
 
-  it("adds a watched chat with its keywords", async () => {
+  it("adds a watched chat", async () => {
     const service = signalsService();
     render(
       <SignalSourcesView service={service} telegram={telegramService()} />,
@@ -269,10 +275,6 @@ describe("signal sources administration", () => {
       screen.getByLabelText("Chat"),
       await screen.findByRole("option", { name: "Betting tips" }),
     );
-    await userEvent.type(
-      screen.getByLabelText("Keywords"),
-      "over 2.5, corners",
-    );
     await userEvent.click(
       screen.getByRole("button", { name: "Add watched chat" }),
     );
@@ -281,7 +283,6 @@ describe("signal sources administration", () => {
       expect.objectContaining({
         accountId: "acc-1",
         entityId: "3",
-        keywords: ["over 2.5", "corners"],
       }),
     );
   });
@@ -298,33 +299,33 @@ describe("signal sources administration", () => {
   });
 });
 
-describe("super administrator guard", () => {
-  it("blocks signed-in users without the super administrator role", async () => {
+describe("workspace administrator guard", () => {
+  it("blocks signed-in members without an administrator role", async () => {
     render(
       <SessionProvider service={authService(viewer)}>
-        <RequireSuperAdmin>
-          <div>Super admin area</div>
-        </RequireSuperAdmin>
+        <RequireAdmin>
+          <div>Workspace admin area</div>
+        </RequireAdmin>
       </SessionProvider>,
     );
     await waitFor(() =>
       expect(
-        screen.getByText("Super administrator access required"),
+        screen.getByText("Workspace administrator access required"),
       ).toBeTruthy(),
     );
-    expect(screen.queryByText("Super admin area")).toBeNull();
+    expect(screen.queryByText("Workspace admin area")).toBeNull();
   });
 
-  it("renders the admin area for super administrators", async () => {
+  it("renders the admin area for workspace owners and admins", async () => {
     render(
       <SessionProvider service={authService(analyst)}>
-        <RequireSuperAdmin>
-          <div>Super admin area</div>
-        </RequireSuperAdmin>
+        <RequireAdmin>
+          <div>Workspace admin area</div>
+        </RequireAdmin>
       </SessionProvider>,
     );
     await waitFor(() =>
-      expect(screen.getByText("Super admin area")).toBeTruthy(),
+      expect(screen.getByText("Workspace admin area")).toBeTruthy(),
     );
   });
 });

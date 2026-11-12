@@ -10,6 +10,7 @@ import { SessionProvider, useSession } from "../src/services/session";
 import { AuthError, authService } from "../src/services/auth";
 import type { AuthService, User } from "../src/services/auth";
 import { safeRedirect } from "../src/services/redirect";
+import type { WorkspaceService } from "../src/services/workspace";
 
 const navigation = vi.hoisted(() => ({ replace: vi.fn() }));
 vi.mock("next/navigation", () => ({
@@ -41,7 +42,14 @@ const user: User = {
   id: "fixture",
   name: "Test Analyst",
   email: "test@example.com",
-  isSuperAdmin: false,
+  role: "member",
+  tenant: {
+    id: "tenant-fixture",
+    name: "Test Workspace",
+    slug: "test-workspace",
+  },
+  isAdmin: false,
+  isSuperuser: false,
 };
 function makeService(overrides: Partial<AuthService> = {}): AuthService {
   return {
@@ -51,6 +59,30 @@ function makeService(overrides: Partial<AuthService> = {}): AuthService {
     logout: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
+}
+function makeWorkspaceService(
+  overrides: Partial<WorkspaceService> = {},
+): WorkspaceService {
+  const unused = vi.fn().mockRejectedValue(new Error("not used"));
+  return {
+    getCurrent: unused,
+    rename: unused,
+    listMembers: unused,
+    createMember: unused,
+    updateMember: unused,
+    removeMember: unused,
+    listInvites: unused,
+    createInvite: unused,
+    revokeInvite: unused,
+    previewInvite: vi.fn().mockResolvedValue({
+      tenantName: "Acme Signals",
+      tenantSlug: "acme-signals",
+      role: "member",
+      email: "",
+      expiresAt: "2099-01-09T09:00:00.000Z",
+    }),
+    ...overrides,
+  } as WorkspaceService;
 }
 function SessionProbe() {
   const { user } = useSession();
@@ -154,6 +186,65 @@ describe("preserved authentication behavior", () => {
       email: "test@example.com",
       password: "test-password-only",
     });
+  });
+  it("creates a workspace when a signup supplies a name", async () => {
+    const service = mount(<AuthPage mode="signup" />);
+    await fillRegistration();
+    await userEvent.type(
+      screen.getByLabelText("Workspace name"),
+      "Acme Signals",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Create Account" }),
+    );
+    await waitFor(() =>
+      expect(navigation.replace).toHaveBeenCalledWith("/dashboard"),
+    );
+    expect(service.register).toHaveBeenCalledWith({
+      name: "Test Analyst",
+      email: "test@example.com",
+      password: "test-password-only",
+      workspaceName: "Acme Signals",
+    });
+  });
+  it("joins a workspace from an invite link after previewing it", async () => {
+    const workspace = makeWorkspaceService();
+    const service = mount(
+      <AuthPage
+        mode="signup"
+        inviteCode="invite-code-value"
+        workspace={workspace}
+      />,
+    );
+    expect(await screen.findByText("You’re joining Acme Signals")).toBeTruthy();
+    expect(workspace.previewInvite).toHaveBeenCalledWith("invite-code-value");
+    await fillRegistration();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Create Account" }),
+    );
+    await waitFor(() =>
+      expect(navigation.replace).toHaveBeenCalledWith("/dashboard"),
+    );
+    expect(service.register).toHaveBeenCalledWith({
+      name: "Test Analyst",
+      email: "test@example.com",
+      password: "test-password-only",
+      inviteCode: "invite-code-value",
+    });
+  });
+  it("flags an unusable invite link without blocking the form", async () => {
+    const workspace = makeWorkspaceService({
+      previewInvite: vi.fn().mockRejectedValue(new Error("gone")),
+    });
+    mount(
+      <AuthPage
+        mode="signup"
+        inviteCode="expired-code"
+        workspace={workspace}
+      />,
+    );
+    expect(await screen.findByText("This invite can’t be used.")).toBeTruthy();
+    expect(screen.getByLabelText("Email address")).toBeTruthy();
   });
   it("handles verification-required registration without creating a session", async () => {
     mount(

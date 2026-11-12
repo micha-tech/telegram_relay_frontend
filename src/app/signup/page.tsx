@@ -11,8 +11,20 @@ export const metadata: Metadata = {
 export default async function SignupPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string | string[] }>;
+  searchParams: Promise<{
+    next?: string | string[];
+    invite?: string | string[];
+  }>;
 }) {
   const params = await searchParams;
-  return <AuthPage mode="signup" redirectTo={safeRedirect(params.next)} />;
+  const invite = Array.isArray(params.invite)
+    ? params.invite[0]
+    : params.invite;
+  return (
+    <AuthPage
+      mode="signup"
+      redirectTo={safeRedirect(params.next)}
+      inviteCode={invite}
+    />
+  );
 }

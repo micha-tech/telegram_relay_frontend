@@ -10,15 +10,23 @@ import { FormField } from "../components/FormField";
 import { AuthError, authErrorMessage } from "../services/auth";
 import { useSession } from "../services/session";
 import { safeRedirect } from "../services/redirect";
+import { workspaceService } from "../services/workspace";
+import type { InvitePreview, WorkspaceService } from "../services/workspace";
 
 export function AuthPage({
   mode,
   redirectTo,
+  inviteCode,
+  workspace = workspaceService,
 }: {
   mode: "signup" | "login";
   redirectTo?: string;
+  /** Invite code supplied by a `/signup?invite=…` link. */
+  inviteCode?: string;
+  workspace?: WorkspaceService;
 }) {
   const signup = mode === "signup";
+  const inviteFromLink = (inviteCode ?? "").trim();
   const {
     user,
     loading,
@@ -32,6 +40,10 @@ export function AuthPage({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [verification, setVerification] = useState(false);
+  const [invitePreview, setInvitePreview] = useState<InvitePreview | null>(
+    null,
+  );
+  const [inviteError, setInviteError] = useState("");
   const form = useRef<HTMLFormElement>(null);
   const errorBox = useRef<HTMLDivElement>(null);
   const requestVersion = useRef(0);
@@ -48,6 +60,31 @@ export function AuthPage({
       requestVersion.current++;
     };
   }, [mode]);
+  useEffect(() => {
+    if (!signup || !inviteFromLink) {
+      setInvitePreview(null);
+      setInviteError("");
+      return;
+    }
+    let cancelled = false;
+    setInviteError("");
+    workspace
+      .previewInvite(inviteFromLink)
+      .then((preview) => {
+        if (!cancelled) setInvitePreview(preview);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setInvitePreview(null);
+          setInviteError(
+            "This invite link is invalid, already used, or has expired.",
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [signup, inviteFromLink, workspace]);
   useEffect(() => {
     if (error) errorBox.current?.focus();
   }, [error]);
@@ -69,6 +106,9 @@ export function AuthPage({
     const email = String(values.get("email") ?? "").trim();
     const password = String(values.get("password") ?? "");
     const confirmation = String(values.get("confirm-password") ?? "");
+    const workspaceName = String(values.get("workspace") ?? "").trim();
+    const typedInvite = String(values.get("invite-code") ?? "").trim();
+    const inviteToUse = inviteFromLink || typedInvite;
     const next: Record<string, string> = {};
     if (signup && name.length < 2) next.name = "Enter your full name.";
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
@@ -78,6 +118,7 @@ export function AuthPage({
       next.password = "Use at least 8 characters.";
     if (signup && confirmation !== password)
       next["confirm-password"] = "Your passwords don’t match.";
+    if (signup && inviteError) next["invite-code"] = inviteError;
     setErrors(next);
     if (Object.keys(next).length) {
       form.current
@@ -89,7 +130,16 @@ export function AuthPage({
     setBusy(true);
     try {
       if (signup) {
-        const result = await service.register({ name, email, password });
+        const result = await service.register({
+          name,
+          email,
+          password,
+          ...(inviteToUse
+            ? { inviteCode: inviteToUse }
+            : workspaceName
+              ? { workspaceName }
+              : {}),
+        });
         if (version !== requestVersion.current) return;
         if (result.status === "verification-required") {
           form.current?.reset();
@@ -224,6 +274,53 @@ export function AuthPage({
                     error={errors.name}
                   />
                 )}
+                {signup &&
+                  (inviteFromLink ? (
+                    <div
+                      className={`invite-banner ${inviteError ? "invite-banner-error" : ""}`}
+                      role={inviteError ? "alert" : "status"}
+                      aria-live="polite"
+                    >
+                      {inviteError ? (
+                        <>
+                          <b>This invite can’t be used.</b>
+                          <span>{inviteError}</span>
+                        </>
+                      ) : invitePreview ? (
+                        <>
+                          <b>You’re joining {invitePreview.tenantName}</b>
+                          <span>
+                            Signing up as{" "}
+                            {invitePreview.role === "admin"
+                              ? "a workspace administrator"
+                              : "a workspace member"}
+                            . The invite is used once you create your account.
+                          </span>
+                        </>
+                      ) : (
+                        <span>Checking your invite…</span>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <FormField
+                        label="Workspace name"
+                        name="workspace"
+                        placeholder="Acme Signals"
+                        autoComplete="organization"
+                        maxLength={255}
+                        hint="You become this workspace’s owner (its super admin). Leave blank to name it after your email."
+                      />
+                      <FormField
+                        label="Invite code"
+                        name="invite-code"
+                        placeholder="Paste an invite code to join a team"
+                        autoComplete="off"
+                        spellCheck={false}
+                        hint="Have an invite? Use the code instead of creating a workspace."
+                      />
+                    </>
+                  ))}
                 <FormField
                   label="Email address"
                   name="email"

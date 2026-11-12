@@ -47,7 +47,14 @@ const user: User = {
   id: "fixture",
   name: "Test Analyst",
   email: "a@b.co",
-  isSuperAdmin: true,
+  role: "owner",
+  tenant: {
+    id: "tenant-fixture",
+    name: "Test Workspace",
+    slug: "test-workspace",
+  },
+  isAdmin: true,
+  isSuperuser: false,
 };
 
 function authService(): AuthService {

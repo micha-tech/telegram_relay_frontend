@@ -12,34 +12,17 @@ import type { SignalSource, SignalsService } from "../services/signals";
 
 interface SourceForm {
   name: string;
-  keywords: string;
-  blockedPhrases: string;
-  minLength: string;
-  caseSensitive: boolean;
   backfillLimit: string;
   forwardEnabled: boolean;
   forwardToPeerId: string;
-  captureAll: boolean;
 }
 
 const EMPTY_FORM: SourceForm = {
   name: "",
-  keywords: "",
-  blockedPhrases: "",
-  minLength: "0",
-  caseSensitive: false,
   backfillLimit: "200",
   forwardEnabled: false,
   forwardToPeerId: "",
-  captureAll: false,
 };
-
-function parseList(value: string) {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
-}
 
 function formatWhen(value: string | null) {
   if (!value) return "never";
@@ -130,23 +113,13 @@ export function SignalSourcesView({
     setNotice(null);
     setForm({
       name: source.name ?? "",
-      keywords: source.rules.keywords.join(", "),
-      blockedPhrases: source.rules.blockedPhrases.join(", "),
-      minLength: String(source.rules.minLength),
-      caseSensitive: source.rules.caseSensitive,
       backfillLimit: String(source.backfillLimit),
       forwardEnabled: source.forwardEnabled,
       forwardToPeerId: source.forwardToId ?? "",
-      captureAll: source.captureAll,
     });
   }
 
   async function handleSave() {
-    const keywords = parseList(form.keywords);
-    if (!form.captureAll && !keywords.length) {
-      setActionError("Add at least one keyword so the chat can be matched.");
-      return;
-    }
     if (!editingId && !selectedDialog?.sourceId) {
       setActionError("Pick a chat to watch.");
       return;
@@ -156,14 +129,9 @@ export function SignalSourcesView({
     setNotice(null);
     const payload = {
       name: form.name.trim(),
-      keywords,
-      blockedPhrases: parseList(form.blockedPhrases),
-      minLength: Number(form.minLength) || 0,
-      caseSensitive: form.caseSensitive,
       backfillLimit: Number(form.backfillLimit) || 200,
       forwardEnabled: form.forwardEnabled,
       forwardToId: form.forwardEnabled ? form.forwardToPeerId || null : null,
-      captureAll: form.captureAll,
     };
     try {
       if (editingId) {
@@ -236,8 +204,8 @@ export function SignalSourcesView({
           <span className="eyebrow">ADMIN</span>
           <h1>Signal Sources</h1>
           <p>
-            Choose the Telegram chats to watch and the keywords that turn their
-            messages into signals. Backfills are queued for the worker.
+            Choose the Telegram chats to watch. Every message posted there is
+            captured as a signal. Backfills are queued for the worker.
           </p>
         </div>
         <button
@@ -335,115 +303,27 @@ export function SignalSourcesView({
         )}
 
         <div className="sig-editor-grid">
-          <label className="sig-check">
+          <label className="sig-field">
+            <span>Source name</span>
             <input
-              type="checkbox"
-              checked={form.captureAll}
+              type="text"
+              value={form.name}
+              placeholder="Optional label"
+              onChange={(event) => updateForm({ name: event.target.value })}
+            />
+          </label>
+          <label className="sig-field">
+            <span>Backfill limit</span>
+            <input
+              type="number"
+              min={1}
+              value={form.backfillLimit}
               onChange={(event) =>
-                updateForm({ captureAll: event.target.checked })
+                updateForm({ backfillLimit: event.target.value })
               }
             />
-            <span>Capture all messages from this channel</span>
           </label>
         </div>
-
-        {!form.captureAll && (
-          <>
-            <div className="sig-editor-grid">
-              <label className="sig-field">
-                <span>Source name</span>
-                <input
-                  type="text"
-                  value={form.name}
-                  placeholder="Optional label"
-                  onChange={(event) => updateForm({ name: event.target.value })}
-                />
-              </label>
-              <label className="sig-field sig-field-grow">
-                <span>Keywords</span>
-                <input
-                  type="text"
-                  value={form.keywords}
-                  placeholder="over 2.5, first half, corners"
-                  onChange={(event) =>
-                    updateForm({ keywords: event.target.value })
-                  }
-                />
-              </label>
-            </div>
-
-            <div className="sig-editor-grid">
-              <label className="sig-field sig-field-grow">
-                <span>Blocked phrases</span>
-                <input
-                  type="text"
-                  value={form.blockedPhrases}
-                  placeholder="Optional, comma separated"
-                  onChange={(event) =>
-                    updateForm({ blockedPhrases: event.target.value })
-                  }
-                />
-              </label>
-              <label className="sig-field">
-                <span>Minimum length</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={form.minLength}
-                  onChange={(event) =>
-                    updateForm({ minLength: event.target.value })
-                  }
-                />
-              </label>
-              <label className="sig-field">
-                <span>Backfill limit</span>
-                <input
-                  type="number"
-                  min={1}
-                  value={form.backfillLimit}
-                  onChange={(event) =>
-                    updateForm({ backfillLimit: event.target.value })
-                  }
-                />
-              </label>
-              <label className="sig-check">
-                <input
-                  type="checkbox"
-                  checked={form.caseSensitive}
-                  onChange={(event) =>
-                    updateForm({ caseSensitive: event.target.checked })
-                  }
-                />
-                <span>Case sensitive</span>
-              </label>
-            </div>
-          </>
-        )}
-
-        {form.captureAll && (
-          <div className="sig-editor-grid">
-            <label className="sig-field">
-              <span>Source name</span>
-              <input
-                type="text"
-                value={form.name}
-                placeholder="Optional label"
-                onChange={(event) => updateForm({ name: event.target.value })}
-              />
-            </label>
-            <label className="sig-field">
-              <span>Backfill limit</span>
-              <input
-                type="number"
-                min={1}
-                value={form.backfillLimit}
-                onChange={(event) =>
-                  updateForm({ backfillLimit: event.target.value })
-                }
-              />
-            </label>
-          </div>
-        )}
 
         <div className="sig-editor-grid">
           <label className="sig-check">
@@ -511,8 +391,8 @@ export function SignalSourcesView({
           <div className="tg-empty">
             <h3>No watched chats yet</h3>
             <p>
-              Pick a Telegram account and a chat above, then add the keywords
-              that should raise a signal.
+              Pick a Telegram account and a chat above to start capturing every
+              message posted there.
             </p>
           </div>
         )}
@@ -538,18 +418,6 @@ export function SignalSourcesView({
                   >
                     {source.enabled ? "Enabled" : "Paused"}
                   </span>
-                </div>
-
-                <div className="sig-terms">
-                  {!source.captureAll &&
-                    source.rules.keywords.map((keyword) => (
-                      <span className="sig-term" key={keyword}>
-                        {keyword}
-                      </span>
-                    ))}
-                  {source.captureAll && (
-                    <span className="sig-term">Capture all messages</span>
-                  )}
                 </div>
 
                 <dl className="tg-card-details">

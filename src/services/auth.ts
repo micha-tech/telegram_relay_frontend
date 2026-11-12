@@ -2,8 +2,14 @@
 //
 // SimpleJWT bearer tokens are stored in localStorage (per the product
 // decision) and refreshed automatically by `src/services/api.ts`. The
-// backend user is `{ id, email, is_superuser }`; a display name is derived
-// from the email because the deployed backend has no name field yet.
+// backend user is `{ id, email, is_superuser, role, tenant }`; a display name
+// is derived from the email because the deployed backend has no name field yet.
+//
+// Every user belongs to exactly one workspace (`tenant`). `role` is their role
+// inside that workspace: the first user of a workspace is its `owner` (the
+// workspace "super admin"), other administrators are `admin`, and readers are
+// `member`. `is_superuser` remains a platform-level flag and should not be used
+// to gate workspace UI.
 
 import {
   ApiError,
@@ -15,11 +21,26 @@ import {
   setTokens,
 } from "./api";
 
+export type TenantRole = "owner" | "admin" | "member";
+
+export interface TenantSummary {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export interface User {
   id: string | number;
   name: string;
   email: string;
-  isSuperAdmin: boolean;
+  /** Role inside the user's workspace. */
+  role: TenantRole | null;
+  /** The workspace the user belongs to. */
+  tenant: TenantSummary | null;
+  /** Workspace administrator (owner/admin) or platform superuser. */
+  isAdmin: boolean;
+  /** Platform-level Django superuser flag, not workspace access. */
+  isSuperuser: boolean;
 }
 
 export interface LoginInput {
@@ -28,7 +49,12 @@ export interface LoginInput {
 }
 
 export interface RegisterInput extends LoginInput {
+  /** Display name; the backend derives its own name from the email. */
   name: string;
+  /** Create a workspace with this name. Ignored when `inviteCode` is set. */
+  workspaceName?: string;
+  /** Join an existing workspace instead of creating one. */
+  inviteCode?: string;
 }
 
 export type RegistrationResult =
@@ -77,6 +103,21 @@ export function nameFromEmail(email: string): string {
     .join(" ");
 }
 
+function toRole(value: unknown): TenantRole | null {
+  return value === "owner" || value === "admin" || value === "member"
+    ? value
+    : null;
+}
+
+function toTenant(value: unknown): TenantSummary | null {
+  const record = asRecord(value);
+  const id = record?.id;
+  const name = record && typeof record.name === "string" ? record.name : "";
+  const slug = record && typeof record.slug === "string" ? record.slug : "";
+  if ((typeof id !== "string" && typeof id !== "number") || !name) return null;
+  return { id: String(id), name, slug };
+}
+
 function toUser(payload: unknown, fallbackName?: string): User {
   const record = asRecord(payload);
   const id = record?.id;
@@ -87,7 +128,17 @@ function toUser(payload: unknown, fallbackName?: string): User {
       "The authentication service returned an unexpected response.",
     );
   const name = fallbackName?.trim() || nameFromEmail(email);
-  return { id, name, email, isSuperAdmin: record?.is_superuser === true };
+  const role = toRole(record?.role);
+  const isSuperuser = record?.is_superuser === true;
+  return {
+    id,
+    name,
+    email,
+    role,
+    tenant: toTenant(record?.tenant),
+    isAdmin: isSuperuser || role === "owner" || role === "admin",
+    isSuperuser,
+  };
 }
 
 function applyTokens(record: Record<string, unknown> | null) {
@@ -158,12 +209,15 @@ export const authService: AuthService = {
     return toUser(record?.user);
   },
   async register(input) {
+    const workspaceName = input.workspaceName?.trim() ?? "";
+    const inviteCode = input.inviteCode?.trim() ?? "";
     const data = await apiRequest<unknown>("/auth/register", {
       method: "POST",
       body: {
-        name: input.name,
         email: input.email.trim().toLowerCase(),
         password: input.password,
+        ...(workspaceName ? { tenant_name: workspaceName } : {}),
+        ...(inviteCode ? { invite_code: inviteCode } : {}),
       },
     }).catch((error) => {
       throw toAuthError(error, "register");

@@ -248,8 +248,7 @@ export function SignalsView({
           <div className="tg-empty">
             <h3>No signals yet</h3>
             <p>
-              Signals appear here as soon as a watched chat posts a message that
-              matches a keyword rule.
+              Signals appear here as soon as a watched chat posts a message.
             </p>
           </div>
         )}
@@ -270,15 +269,6 @@ export function SignalsView({
                   <span className="sig-author">
                     {signal.author ?? "Unknown author"}
                   </span>
-                  {signal.matchedTerms.length > 0 && (
-                    <span className="sig-terms">
-                      {signal.matchedTerms.map((term) => (
-                        <span className="sig-term" key={term}>
-                          {term}
-                        </span>
-                      ))}
-                    </span>
-                  )}
                 </div>
               </li>
             ))}

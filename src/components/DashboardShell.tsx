@@ -27,6 +27,11 @@ const NAV_ITEMS: NavItem[] = [
     label: "Signal Sources",
     adminOnly: true,
   },
+  {
+    href: "/dashboard/workspace",
+    label: "Workspace",
+    adminOnly: true,
+  },
 ];
 
 export function DashboardShell({ children }: { children: ReactNode }) {
@@ -55,7 +60,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           <Brand />
           <nav className="dashboard-nav" aria-label="Dashboard">
             {NAV_ITEMS.filter(
-              (item) => !item.adminOnly || user?.isSuperAdmin === true,
+              (item) => !item.adminOnly || user?.isAdmin === true,
             ).map((item) => (
               <Link
                 key={item.href}
@@ -73,7 +78,22 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             ))}
           </nav>
           <div className="dashboard-actions">
-            {user && <span className="dashboard-user">{user.name}</span>}
+            {user && (
+              <span className="dashboard-user" title={user.email}>
+                {user.tenant ? (
+                  <>
+                    <span className="dashboard-workspace">
+                      {user.tenant.name}
+                    </span>
+                    <span className="dashboard-role">
+                      {user.role ?? "member"}
+                    </span>
+                  </>
+                ) : (
+                  user.name
+                )}
+              </span>
+            )}
             <button
               type="button"
               className="button button-secondary dashboard-signout"

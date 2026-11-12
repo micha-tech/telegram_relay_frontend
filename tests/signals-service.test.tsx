@@ -31,7 +31,6 @@ const signalPayload = {
   text: "Over 2.5 goals confirmed",
   author: "Tipster",
   author_id: 42,
-  matched_terms: ["over 2.5"],
   sent_at: "2026-01-02T10:00:00.000Z",
   created_at: "2026-01-02T10:00:05.000Z",
 };
@@ -46,12 +45,6 @@ const sourcePayload = {
   peer_id: -1001234567890,
   name: "Betting tips",
   enabled: true,
-  rules: {
-    keywords: ["over 2.5"],
-    blocked_phrases: ["spoiler"],
-    min_length: 10,
-    case_sensitive: false,
-  },
   backfill_limit: 200,
   last_scraped_at: null,
   last_signal_at: "2026-01-02T10:00:00.000Z",
@@ -102,7 +95,6 @@ describe("signals api adapter", () => {
       text: "Over 2.5 goals confirmed",
       sourceName: "Betting tips",
       accountLabel: "Analyst",
-      matchedTerms: ["over 2.5"],
     });
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toContain("https://api.example.test/api/v1/signals/?");
@@ -139,10 +131,6 @@ describe("signals api adapter", () => {
       accountId: "7",
       entityId: "3",
       name: "Betting tips",
-      keywords: ["over 2.5"],
-      blockedPhrases: ["spoiler"],
-      minLength: 10,
-      caseSensitive: false,
       backfillLimit: 200,
     });
     expect(source).toMatchObject({
@@ -152,12 +140,6 @@ describe("signals api adapter", () => {
       enabled: true,
       backfillLimit: 200,
     });
-    expect(source.rules).toEqual({
-      keywords: ["over 2.5"],
-      blockedPhrases: ["spoiler"],
-      minLength: 10,
-      caseSensitive: false,
-    });
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("https://api.example.test/api/v1/signal-sources/");
     expect(init.method).toBe("POST");
@@ -166,12 +148,6 @@ describe("signals api adapter", () => {
       entity: "3",
       name: "Betting tips",
       backfill_limit: 200,
-      rules: {
-        keywords: ["over 2.5"],
-        blocked_phrases: ["spoiler"],
-        min_length: 10,
-        case_sensitive: false,
-      },
     });
   });
 
@@ -186,7 +162,7 @@ describe("signals api adapter", () => {
     );
     const sources = await service.listSources();
     expect(sources).toHaveLength(1);
-    expect(sources[0].rules.keywords).toEqual(["over 2.5"]);
+    expect(sources[0].name).toBe("Betting tips");
   });
 
   it("updates, queues a backfill and deletes a source", async () => {
@@ -229,7 +205,7 @@ describe("signals api adapter", () => {
       jsonResponse(403, {
         success: false,
         data: null,
-        message: "This action is restricted to super administrators.",
+        message: "This action requires workspace administrator rights.",
         error: { code: "permission_denied", details: null },
       }),
     );

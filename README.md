@@ -44,13 +44,16 @@ Next.js prerenders the landing page and server-renders auth pages. Static market
 | Route                          | Behavior                                            |
 | ------------------------------ | --------------------------------------------------- |
 | `/`                            | Public landing page                                 |
-| `/signup`                      | Registration form                                   |
+| `/signup`                      | Registration form (create or join a workspace)      |
 | `/login`                       | Sign-in form                                        |
 | `/dashboard`                   | Protected account shell; guests redirect to sign-in |
-| `/dashboard/telegram-accounts` | Protected Telegram account management               |
+| `/dashboard/signals`           | Shared signal feed for every workspace member       |
+| `/dashboard/signal-sources`    | Administrator-only watched chats                    |
+| `/dashboard/telegram-accounts` | Administrator-only Telegram account management      |
+| `/dashboard/workspace`         | Administrator-only workspace, members and invites   |
 | Unknown path                   | Next.js 404 page with a route home                  |
 
-Auth pages accept a `next` query parameter restricted to local `/dashboard` destinations and are marked `noindex`.
+Auth pages accept a `next` query parameter restricted to local `/dashboard` destinations and are marked `noindex`. `/signup?invite=CODE` pre-fills an invite link and previews the workspace before registration.
 
 ## Authentication integration
 
@@ -58,12 +61,32 @@ Authentication talks to the Django REST Framework backend through `src/services/
 
 - `getSession()` returns the verified user from `GET /auth/me`, or `null` when there is no access token or the token is rejected.
 - `login({ email, password })` posts to `POST /auth/login` and stores the returned access and refresh tokens.
-- `register({ name, email, password })` posts to `POST /auth/register`. The backend currently ignores `name`; the UI derives a display name from the email until the backend persists it.
+- `register({ name, email, password, workspaceName?, inviteCode? })` posts to `POST /auth/register`. Pass `workspaceName` (`tenant_name`) to create a workspace as its owner, or `inviteCode` (`invite_code`) to join an existing one. The backend currently ignores `name`; the UI derives a display name from the email until the backend persists it.
+- `GET /auth/me` returns `{ id, email, is_superuser, role, tenant: { id, name, slug } }`. `role` is `owner`, `admin` or `member` inside the user's single workspace; `is_superuser` remains a platform-level flag and does not grant workspace access. `src/services/auth.ts` exposes `role`, `tenant`, `isSuperuser` and a derived `isAdmin` (owner/admin or platform superuser) used to gate administrator UI.
 - `logout()` blacklists the refresh token via `POST /auth/logout`, then clears local tokens. If the request fails the user stays signed in so they can retry.
 - Access tokens last 15 minutes. `src/services/api.ts` transparently refreshes them via `POST /auth/refresh` on a `401` and retries the request once. If the refresh fails the tokens are cleared and the user is treated as signed out.
 - `AuthError` maps backend failures to `unavailable`, `invalid-credentials`, `email-in-use`, `network` and `validation`, exposing field errors where the backend provides them.
 
 Tokens are stored in `localStorage` (a deliberate product decision). This is convenient for a bearer-token API but is readable by any script on the origin; prefer HttpOnly cookies once the backend supports a cookie session. The client route guard preserves the existing UX; it is not server authorization — the backend is the source of truth for ownership.
+
+### Workspace integration
+
+`src/services/workspace.ts` wraps the tenant endpoints used by `/dashboard/workspace`:
+
+| Method | Endpoint                | Purpose                                         |
+| ------ | ----------------------- | ----------------------------------------------- |
+| GET    | `/tenant/current/`      | Current workspace with the caller's role        |
+| PATCH  | `/tenant/rename/`       | Rename the workspace (owner only)               |
+| GET    | `/tenant/members/`      | List members                                    |
+| POST   | `/tenant/members/`      | Create an account with a temporary password     |
+| PATCH  | `/tenant/members/{id}/` | Change a member's role (owner only)             |
+| DELETE | `/tenant/members/{id}/` | Deactivate a member                             |
+| GET    | `/tenant/invites/`      | List invite codes                               |
+| POST   | `/tenant/invites/`      | Create a single-use invite                      |
+| DELETE | `/tenant/invites/{id}/` | Revoke an invite                                |
+| GET    | `/auth/invites/{code}`  | Public invite preview for `/signup?invite=CODE` |
+
+Owners and admins can manage members and invites; only owners can rename the workspace, create admins or change roles. The backend enforces these rules and the UI hides controls that would fail.
 
 ### Required backend CORS
 
@@ -95,7 +118,7 @@ All paths are relative to `NEXT_PUBLIC_TELEGRAM_API_BASE_URL`. Successful respon
 | POST   | `/auth/login`                         | Sign in (`{ email, password }`)                         |
 | POST   | `/auth/logout`                        | Blacklist a refresh token (`{ refresh }`)               |
 | POST   | `/auth/refresh`                       | Refresh an access token (`{ refresh }`)                 |
-| GET    | `/auth/me`                            | Current user (`{ id, email }`)                          |
+| GET    | `/auth/me`                            | Current user (`{ id, email, role, tenant }`)            |
 | POST   | `/telegram/auth/start`                | Start a login challenge (`{ phone_number }`)            |
 | POST   | `/telegram/auth/verify`               | Verify the login code (`{ challenge_id, code }`)        |
 | POST   | `/telegram/auth/2fa`                  | Submit two-step password (`{ challenge_id, password }`) |
@@ -133,6 +156,6 @@ npm run test:production
 npm run format:check
 ```
 
-Unit tests exercise the authentication lifecycle with injected test-only adapters: session restoration, redirects, registration, email verification, loading, network/credential errors, retries and logout. Telegram tests cover the API adapter’s request construction and error mapping plus the accounts view and connection wizard. Browser tests cover navigation, validation, missing-backend behavior, chart controls, five responsive widths, mobile navigation, the protected Telegram route and accessibility. Production tests check server HTML, metadata, hydration, protected-route redirects and 404 pages.
+Unit tests exercise the authentication lifecycle with injected test-only adapters: session restoration, redirects, registration with workspace creation and invite links, email verification, loading, network/credential errors, retries and logout. Workspace tests cover the tenant adapter, member and invite management and owner-only controls. Telegram tests cover the API adapter’s request construction and error mapping plus the accounts view and connection wizard. Browser tests cover navigation, validation, missing-backend behavior, chart controls, five responsive widths, mobile navigation, the protected Telegram route and accessibility. Production tests check server HTML, metadata, hydration, protected-route redirects and 404 pages.
 
 # telegram_relay_frontend

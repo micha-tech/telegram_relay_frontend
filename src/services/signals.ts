@@ -1,8 +1,8 @@
 // Typed adapter for the scraped signals feed and the admin signal sources.
 //
-// Signals are Telegram messages that matched the keyword rules of a watched
-// chat. Every signed-in user can read the feed; only super administrators can
-// manage the watched chats and their rules.
+// Signals are Telegram messages captured from a watched chat. Every signed-in
+// user can read the feed; only workspace administrators can manage watched
+// chats.
 
 import { ApiError, apiBaseUrl, apiRequest } from "./api";
 import type { ApiErrorCode } from "./api";
@@ -24,7 +24,6 @@ export interface Signal {
   messageId: string | null;
   text: string;
   author: string | null;
-  matchedTerms: string[];
   sentAt: string | null;
   createdAt: string | null;
 }
@@ -61,13 +60,6 @@ export interface SignalStats {
   byAccount: SignalCount[];
 }
 
-export interface SignalRules {
-  keywords: string[];
-  blockedPhrases: string[];
-  minLength: number;
-  caseSensitive: boolean;
-}
-
 export interface SignalSource {
   id: string;
   accountId: string;
@@ -80,8 +72,6 @@ export interface SignalSource {
   name: string | null;
   enabled: boolean;
   forwardEnabled: boolean;
-  captureAll: boolean;
-  rules: SignalRules;
   backfillLimit: number;
   lastScrapedAt: string | null;
   lastSignalAt: string | null;
@@ -95,11 +85,6 @@ export interface SignalSourceInput {
   name?: string;
   enabled?: boolean;
   forwardEnabled?: boolean;
-  captureAll?: boolean;
-  keywords: string[];
-  blockedPhrases?: string[];
-  minLength?: number;
-  caseSensitive?: boolean;
   backfillLimit?: number;
 }
 
@@ -144,11 +129,6 @@ function readNumber(value: unknown, fallback: number) {
   return fallback;
 }
 
-function readStringList(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === "string");
-}
-
 function hasLink(value: unknown): boolean {
   return typeof value === "string" && value.length > 0;
 }
@@ -171,7 +151,6 @@ function parseSignal(value: unknown): Signal {
     messageId: readId(record.message_id),
     text: typeof record.text === "string" ? record.text : "",
     author: readString(record, "author"),
-    matchedTerms: readStringList(record.matched_terms),
     sentAt: readString(record, "sent_at"),
     createdAt: readString(record, "created_at"),
   };
@@ -234,16 +213,6 @@ function parseStats(payload: unknown): SignalStats {
   };
 }
 
-function parseRules(value: unknown): SignalRules {
-  const record = asRecord(value);
-  return {
-    keywords: record ? readStringList(record.keywords) : [],
-    blockedPhrases: record ? readStringList(record.blocked_phrases) : [],
-    minLength: record ? readNumber(record.min_length, 0) : 0,
-    caseSensitive: record ? record.case_sensitive === true : false,
-  };
-}
-
 function parseSource(value: unknown): SignalSource {
   const record = asRecord(value);
   const id = record ? readId(record.id) : null;
@@ -266,8 +235,6 @@ function parseSource(value: unknown): SignalSource {
     name: readString(record, "name"),
     enabled: record.enabled === true,
     forwardEnabled: record.forward_enabled === true,
-    captureAll: record.capture_all === true,
-    rules: parseRules(record.rules),
     backfillLimit: readNumber(record.backfill_limit, 200),
     lastScrapedAt: readString(record, "last_scraped_at"),
     lastSignalAt: readString(record, "last_signal_at"),
@@ -290,16 +257,6 @@ function parseSourceList(payload: unknown): SignalSource[] {
   return list.map(parseSource);
 }
 
-function toRulesPayload(input: Partial<SignalSourceInput>) {
-  const rules: Record<string, unknown> = {};
-  if (input.keywords) rules.keywords = input.keywords;
-  if (input.blockedPhrases) rules.blocked_phrases = input.blockedPhrases;
-  if (input.minLength !== undefined) rules.min_length = input.minLength;
-  if (input.caseSensitive !== undefined)
-    rules.case_sensitive = input.caseSensitive;
-  return rules;
-}
-
 function toSourceBody(input: Partial<SignalSourceInput>) {
   const body: Record<string, unknown> = {};
   if (input.accountId) body.account = input.accountId;
@@ -309,23 +266,8 @@ function toSourceBody(input: Partial<SignalSourceInput>) {
   if (input.enabled !== undefined) body.enabled = input.enabled;
   if (input.forwardEnabled !== undefined)
     body.forward_enabled = input.forwardEnabled;
-  if (input.captureAll !== undefined) body.capture_all = input.captureAll;
   if (input.backfillLimit !== undefined)
     body.backfill_limit = input.backfillLimit;
-  if (input.captureAll) {
-    body.rules = {
-      keywords: [],
-      blocked_phrases: [],
-      min_length: 0,
-      case_sensitive: false,
-    };
-  } else if (
-    input.keywords !== undefined ||
-    input.blockedPhrases !== undefined ||
-    input.minLength !== undefined ||
-    input.caseSensitive !== undefined
-  )
-    body.rules = toRulesPayload(input);
   return body;
 }
 
@@ -335,7 +277,7 @@ const sourcePath = (sourceId: string) =>
 export function signalsErrorMessage(error: unknown) {
   if (error instanceof ApiError) {
     if (error.code === "forbidden")
-      return "Only super administrators can manage signal sources.";
+      return "Only workspace administrators can manage signal sources.";
     return error.message;
   }
   if (error instanceof TypeError)
