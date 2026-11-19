@@ -8,8 +8,8 @@
 // Every user belongs to exactly one workspace (`tenant`). `role` is their role
 // inside that workspace: the first user of a workspace is its `owner` (the
 // workspace "super admin"), other administrators are `admin`, and readers are
-// `member`. `is_superuser` remains a platform-level flag and should not be used
-// to gate workspace UI.
+// `member`. The backend treats platform superusers (`is_superuser`) as workspace
+// admins/owners too, so the UI mirrors that instead of showing a second role.
 
 import {
   ApiError,
@@ -39,7 +39,7 @@ export interface User {
   tenant: TenantSummary | null;
   /** Workspace administrator (owner/admin) or platform superuser. */
   isAdmin: boolean;
-  /** Platform-level Django superuser flag, not workspace access. */
+  /** Platform superuser; backend grants admin/owner rights to these users. */
   isSuperuser: boolean;
 }
 
@@ -57,8 +57,9 @@ export interface RegisterInput extends LoginInput {
   inviteCode?: string;
 }
 
-export type RegistrationResult =
-  { status: "authenticated"; user: User } | { status: "verification-required" };
+// Registration always returns an authenticated session; email verification is
+// not part of the deployed backend flow.
+export type RegistrationResult = { status: "authenticated"; user: User };
 
 export type AuthErrorCode =
   | "unavailable"

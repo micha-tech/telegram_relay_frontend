@@ -14,14 +14,15 @@ interface SourceForm {
   name: string;
   backfillLimit: string;
   forwardEnabled: boolean;
-  forwardToPeerId: string;
+  /** TelegramEntity UUID for a destination chat (not the raw peer ID). */
+  forwardToId: string;
 }
 
 const EMPTY_FORM: SourceForm = {
   name: "",
   backfillLimit: "200",
   forwardEnabled: false,
-  forwardToPeerId: "",
+  forwardToId: "",
 };
 
 function formatWhen(value: string | null) {
@@ -54,6 +55,7 @@ export function SignalSourcesView({
   const [errorMessage, setErrorMessage] = useState("");
   const [actionError, setActionError] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
+  const destinations = dialogs.filter((dialog) => dialog.destinationId);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -111,17 +113,23 @@ export function SignalSourcesView({
     setSelectedDialog(null);
     setActionError("");
     setNotice(null);
+    // The destination list is loaded from the dialogs of the source's account.
+    setAccountId(source.accountId);
     setForm({
       name: source.name ?? "",
       backfillLimit: String(source.backfillLimit),
       forwardEnabled: source.forwardEnabled,
-      forwardToPeerId: source.forwardToId ?? "",
+      forwardToId: source.forwardToId ?? "",
     });
   }
 
   async function handleSave() {
     if (!editingId && !selectedDialog?.sourceId) {
       setActionError("Pick a chat to watch.");
+      return;
+    }
+    if (form.forwardEnabled && !form.forwardToId) {
+      setActionError("Pick a destination chat to forward signals to.");
       return;
     }
     setSaving(true);
@@ -131,7 +139,7 @@ export function SignalSourcesView({
       name: form.name.trim(),
       backfillLimit: Number(form.backfillLimit) || 200,
       forwardEnabled: form.forwardEnabled,
-      forwardToId: form.forwardEnabled ? form.forwardToPeerId || null : null,
+      forwardToId: form.forwardEnabled ? form.forwardToId || null : null,
     };
     try {
       if (editingId) {
@@ -338,15 +346,31 @@ export function SignalSourcesView({
           </label>
           {form.forwardEnabled && (
             <label className="sig-field sig-field-grow">
-              <span>Destination chat peer ID</span>
-              <input
-                type="text"
-                value={form.forwardToPeerId}
-                placeholder="Enter destination peer ID (e.g. -1001234567890)"
+              <span>Destination chat</span>
+              <select
+                value={form.forwardToId}
                 onChange={(event) =>
-                  updateForm({ forwardToPeerId: event.target.value })
+                  updateForm({ forwardToId: event.target.value })
                 }
-              />
+              >
+                <option value="">Select a destination chat…</option>
+                {form.forwardToId &&
+                  !destinations.some(
+                    (dialog) => dialog.destinationId === form.forwardToId,
+                  ) && (
+                    <option value={form.forwardToId}>
+                      Current destination
+                    </option>
+                  )}
+                {destinations.map((dialog) => (
+                  <option
+                    key={dialog.destinationId}
+                    value={dialog.destinationId ?? ""}
+                  >
+                    {dialog.title ?? dialog.username ?? `Chat ${dialog.peerId}`}
+                  </option>
+                ))}
+              </select>
             </label>
           )}
         </div>

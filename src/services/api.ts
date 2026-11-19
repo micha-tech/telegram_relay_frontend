@@ -208,7 +208,10 @@ function errorFromEnvelope(
     const first = Object.values(fieldErrors)[0];
     if (first) message = first;
   }
-  const code = mapCode(rawCode, status);
+  let code = mapCode(rawCode, status);
+  // Older backends report Telegram FloodWait as a plain validation error.
+  if (code === "validation" && /try again in \d+ seconds/i.test(message))
+    code = "flood-wait";
   const retryAfterSeconds =
     code === "flood-wait" ? parseRetrySeconds(message, details) : undefined;
   return new ApiError({
@@ -234,6 +237,7 @@ const CODE_MAP: Record<string, ApiErrorCode> = {
   permission_denied: "forbidden",
   not_found: "not-found",
   throttled: "flood-wait",
+  flood_wait: "flood-wait",
   invalid: "validation",
   parse_error: "validation",
   internal_error: "server",
@@ -274,6 +278,9 @@ function parseRetrySeconds(
   message: string,
   details: unknown,
 ): number | undefined {
+  const record = asRecord(details);
+  const explicit = record ? Number(record.retry_after_seconds) : NaN;
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
   const sources = [message, typeof details === "string" ? details : ""];
   for (const source of sources) {
     const match = /(\d+)\s*second/i.exec(source);

@@ -246,22 +246,64 @@ describe("preserved authentication behavior", () => {
     expect(await screen.findByText("This invite can’t be used.")).toBeTruthy();
     expect(screen.getByLabelText("Email address")).toBeTruthy();
   });
-  it("handles verification-required registration without creating a session", async () => {
-    mount(
-      <AuthPage mode="signup" />,
-      makeService({
-        register: vi
-          .fn()
-          .mockResolvedValue({ status: "verification-required" }),
+  it("requires the email address an invite link was issued for", async () => {
+    const workspace = makeWorkspaceService({
+      previewInvite: vi.fn().mockResolvedValue({
+        tenantName: "Acme Signals",
+        tenantSlug: "acme-signals",
+        role: "member",
+        email: "invitee@example.com",
+        expiresAt: "2099-01-09T09:00:00.000Z",
       }),
+    });
+    mount(
+      <AuthPage mode="signup" inviteCode="locked-code" workspace={workspace} />,
+    );
+    await screen.findByText(
+      "This invite is reserved for invitee@example.com. Use that email address to accept it.",
     );
     await fillRegistration();
     await userEvent.click(
       screen.getByRole("button", { name: "Create Account" }),
     );
-    await screen.findByRole("heading", { name: "Check your email" });
-    expect(screen.getByTestId("session-user").textContent).toBe("anonymous");
+    expect(
+      await screen.findByText(
+        "This invite is reserved for invitee@example.com. Sign up with that email address.",
+      ),
+    ).toBeTruthy();
     expect(navigation.replace).not.toHaveBeenCalled();
+
+    await userEvent.clear(screen.getByLabelText("Email address"));
+    await userEvent.type(
+      screen.getByLabelText("Email address"),
+      "invitee@example.com",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Create Account" }),
+    );
+    await waitFor(() =>
+      expect(navigation.replace).toHaveBeenCalledWith("/dashboard"),
+    );
+  });
+
+  it("maps backend invite_code field errors to the invite code input", async () => {
+    const service = makeService({
+      register: vi.fn().mockRejectedValue(
+        new AuthError("validation", "This invite has already been used", {
+          invite_code: "This invite has already been used",
+        }),
+      ),
+    });
+    mount(<AuthPage mode="signup" />, service);
+    await fillRegistration();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Create Account" }),
+    );
+    expect(
+      await screen.findByText("This invite has already been used", {
+        selector: ".field-error",
+      }),
+    ).toBeTruthy();
   });
   it("reports credential and network errors and allows retry", async () => {
     const login = vi

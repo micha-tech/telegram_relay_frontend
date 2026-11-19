@@ -10,7 +10,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { SignalsView } from "../src/views/SignalsView";
 import { SignalSourcesView } from "../src/views/SignalSourcesView";
-import { RequireAdmin } from "../src/components/ProtectedAccount";
+import { RequireAdmin, RequireOwner } from "../src/components/ProtectedAccount";
 import { SessionProvider } from "../src/services/session";
 import type {
   Signal,
@@ -77,6 +77,14 @@ const viewer: User = {
   },
   isAdmin: false,
   isSuperuser: false,
+};
+
+const platformAdmin: User = {
+  ...viewer,
+  id: "3",
+  email: "operator@example.com",
+  isAdmin: true,
+  isSuperuser: true,
 };
 
 function authService(user: User): AuthService {
@@ -287,6 +295,38 @@ describe("signal sources administration", () => {
     );
   });
 
+  it("forwards to the destination entity UUID, not a raw peer ID", async () => {
+    const service = signalsService();
+    render(
+      <SignalSourcesView service={service} telegram={telegramService()} />,
+    );
+    await waitFor(() => expect(service.listSources).toHaveBeenCalled());
+    await userEvent.selectOptions(
+      screen.getByLabelText("Chat"),
+      await screen.findByRole("option", { name: "Betting tips" }),
+    );
+    await userEvent.click(
+      screen.getByLabelText("Forward signals to another chat"),
+    );
+    const destination = await screen.findByLabelText("Destination chat");
+    await userEvent.selectOptions(
+      destination,
+      await within(destination).findByRole("option", { name: "Betting tips" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Add watched chat" }),
+    );
+
+    await waitFor(() => expect(service.createSource).toHaveBeenCalled());
+    expect(service.createSource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityId: "3",
+        forwardEnabled: true,
+        forwardToId: "4",
+      }),
+    );
+  });
+
   it("queues a backfill for a watched chat", async () => {
     const service = signalsService();
     render(
@@ -326,6 +366,19 @@ describe("workspace administrator guard", () => {
     );
     await waitFor(() =>
       expect(screen.getByText("Workspace admin area")).toBeTruthy(),
+    );
+  });
+
+  it("grants platform superusers the owner-only area like the backend does", async () => {
+    render(
+      <SessionProvider service={authService(platformAdmin)}>
+        <RequireOwner>
+          <div>Workspace owner area</div>
+        </RequireOwner>
+      </SessionProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Workspace owner area")).toBeTruthy(),
     );
   });
 });

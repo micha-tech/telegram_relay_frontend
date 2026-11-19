@@ -39,7 +39,6 @@ export function AuthPage({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [verification, setVerification] = useState(false);
   const [invitePreview, setInvitePreview] = useState<InvitePreview | null>(
     null,
   );
@@ -54,7 +53,6 @@ export function AuthPage({
     setErrors({});
     setError("");
     setBusy(false);
-    setVerification(false);
     form.current?.reset();
     return () => {
       requestVersion.current++;
@@ -118,6 +116,13 @@ export function AuthPage({
       next.password = "Use at least 8 characters.";
     if (signup && confirmation !== password)
       next["confirm-password"] = "Your passwords don’t match.";
+    const lockedEmail = inviteFromLink ? (invitePreview?.email ?? "") : "";
+    if (
+      signup &&
+      lockedEmail &&
+      email.toLowerCase() !== lockedEmail.toLowerCase()
+    )
+      next.email = `This invite is reserved for ${lockedEmail}. Sign up with that email address.`;
     if (signup && inviteError) next["invite-code"] = inviteError;
     setErrors(next);
     if (Object.keys(next).length) {
@@ -141,11 +146,6 @@ export function AuthPage({
               : {}),
         });
         if (version !== requestVersion.current) return;
-        if (result.status === "verification-required") {
-          form.current?.reset();
-          setVerification(true);
-          return;
-        }
         setUser(result.user);
       } else {
         const account = await service.login({ email, password });
@@ -156,8 +156,12 @@ export function AuthPage({
     } catch (err) {
       if (version !== requestVersion.current) return;
       setError(authErrorMessage(err));
-      if (err instanceof AuthError && err.fieldErrors)
-        setErrors(err.fieldErrors);
+      if (err instanceof AuthError && err.fieldErrors) {
+        const mapped = { ...err.fieldErrors };
+        if (mapped.invite_code && !mapped["invite-code"])
+          mapped["invite-code"] = mapped.invite_code;
+        setErrors(mapped);
+      }
     } finally {
       if (version === requestVersion.current) setBusy(false);
     }
@@ -233,156 +237,146 @@ export function AuthPage({
               </button>
             </div>
           )}
-          {verification ? (
-            <div role="status" className="verification-message">
-              <span className="verification-icon" aria-hidden="true">
-                ↗
-              </span>
-              <h3>Check your email</h3>
-              <p>
-                Your account request was received. Follow the verification
-                instructions in your inbox to continue.
-              </p>
-              <Link href="/login" className="button button-primary">
-                Back to Sign In <Arrow />
-              </Link>
-            </div>
-          ) : (
-            <form ref={form} onSubmit={submit} noValidate aria-busy={busy}>
-              {error && (
-                <div
-                  className="form-alert"
-                  role="alert"
-                  tabIndex={-1}
-                  ref={errorBox}
-                >
-                  <b>
-                    We couldn’t {signup ? "create your account" : "sign you in"}
-                    .
-                  </b>
-                  <span>{error}</span>
-                </div>
+          <form ref={form} onSubmit={submit} noValidate aria-busy={busy}>
+            {error && (
+              <div
+                className="form-alert"
+                role="alert"
+                tabIndex={-1}
+                ref={errorBox}
+              >
+                <b>
+                  We couldn’t {signup ? "create your account" : "sign you in"}.
+                </b>
+                <span>{error}</span>
+              </div>
+            )}
+            <fieldset disabled={busy || loading || !!sessionError}>
+              {signup && (
+                <FormField
+                  label="Full name"
+                  name="name"
+                  placeholder="Your full name"
+                  autoComplete="name"
+                  required
+                  maxLength={120}
+                  error={errors.name}
+                />
               )}
-              <fieldset disabled={busy || loading || !!sessionError}>
-                {signup && (
-                  <FormField
-                    label="Full name"
-                    name="name"
-                    placeholder="Your full name"
-                    autoComplete="name"
-                    required
-                    maxLength={120}
-                    error={errors.name}
-                  />
-                )}
-                {signup &&
-                  (inviteFromLink ? (
-                    <div
-                      className={`invite-banner ${inviteError ? "invite-banner-error" : ""}`}
-                      role={inviteError ? "alert" : "status"}
-                      aria-live="polite"
-                    >
-                      {inviteError ? (
-                        <>
-                          <b>This invite can’t be used.</b>
-                          <span>{inviteError}</span>
-                        </>
-                      ) : invitePreview ? (
-                        <>
-                          <b>You’re joining {invitePreview.tenantName}</b>
+              {signup &&
+                (inviteFromLink ? (
+                  <div
+                    className={`invite-banner ${inviteError ? "invite-banner-error" : ""}`}
+                    role={inviteError ? "alert" : "status"}
+                    aria-live="polite"
+                  >
+                    {inviteError ? (
+                      <>
+                        <b>This invite can’t be used.</b>
+                        <span>{inviteError}</span>
+                      </>
+                    ) : invitePreview ? (
+                      <>
+                        <b>You’re joining {invitePreview.tenantName}</b>
+                        <span>
+                          Signing up as{" "}
+                          {invitePreview.role === "admin"
+                            ? "a workspace administrator"
+                            : "a workspace member"}
+                          . The invite is used once you create your account.
+                        </span>
+                        {invitePreview.email && (
                           <span>
-                            Signing up as{" "}
-                            {invitePreview.role === "admin"
-                              ? "a workspace administrator"
-                              : "a workspace member"}
-                            . The invite is used once you create your account.
+                            This invite is reserved for {invitePreview.email}.
+                            Use that email address to accept it.
                           </span>
-                        </>
-                      ) : (
-                        <span>Checking your invite…</span>
-                      )}
-                    </div>
-                  ) : (
-                    <>
-                      <FormField
-                        label="Workspace name"
-                        name="workspace"
-                        placeholder="Acme Signals"
-                        autoComplete="organization"
-                        maxLength={255}
-                        hint="You become this workspace’s owner (its super admin). Leave blank to name it after your email."
-                      />
-                      <FormField
-                        label="Invite code"
-                        name="invite-code"
-                        placeholder="Paste an invite code to join a team"
-                        autoComplete="off"
-                        spellCheck={false}
-                        hint="Have an invite? Use the code instead of creating a workspace."
-                      />
-                    </>
-                  ))}
+                        )}
+                      </>
+                    ) : (
+                      <span>Checking your invite…</span>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <FormField
+                      label="Workspace name"
+                      name="workspace"
+                      placeholder="Acme Signals"
+                      autoComplete="organization"
+                      maxLength={255}
+                      hint="You become this workspace’s owner (its super admin). Leave blank to name it after your email."
+                    />
+                    <FormField
+                      label="Invite code"
+                      name="invite-code"
+                      placeholder="Paste an invite code to join a team"
+                      autoComplete="off"
+                      spellCheck={false}
+                      hint="Have an invite? Use the code instead of creating a workspace."
+                      error={errors["invite-code"]}
+                    />
+                  </>
+                ))}
+              <FormField
+                label="Email address"
+                name="email"
+                type="email"
+                placeholder="you@example.com"
+                autoComplete="email"
+                inputMode="email"
+                autoCapitalize="none"
+                spellCheck={false}
+                required
+                maxLength={254}
+                error={errors.email}
+              />
+              <FormField
+                label="Password"
+                name="password"
+                type="password"
+                placeholder={
+                  signup ? "Create a password" : "Enter your password"
+                }
+                autoComplete={signup ? "new-password" : "current-password"}
+                required
+                hint={signup ? "Use at least 8 characters." : undefined}
+                error={errors.password}
+              />
+              {signup && (
                 <FormField
-                  label="Email address"
-                  name="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                  inputMode="email"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  required
-                  maxLength={254}
-                  error={errors.email}
-                />
-                <FormField
-                  label="Password"
-                  name="password"
+                  label="Confirm password"
+                  name="confirm-password"
                   type="password"
-                  placeholder={
-                    signup ? "Create a password" : "Enter your password"
-                  }
-                  autoComplete={signup ? "new-password" : "current-password"}
+                  placeholder="Re-enter your password"
+                  autoComplete="new-password"
                   required
-                  hint={signup ? "Use at least 8 characters." : undefined}
-                  error={errors.password}
+                  error={errors["confirm-password"]}
                 />
-                {signup && (
-                  <FormField
-                    label="Confirm password"
-                    name="confirm-password"
-                    type="password"
-                    placeholder="Re-enter your password"
-                    autoComplete="new-password"
-                    required
-                    error={errors["confirm-password"]}
-                  />
+              )}
+              <button
+                type="submit"
+                className="button button-primary auth-submit"
+                disabled={busy || loading}
+              >
+                {busy ? (
+                  <>
+                    <span className="spinner" />
+                    {signup ? "Creating your account…" : "Signing in…"}
+                  </>
+                ) : (
+                  <>
+                    {signup ? "Create Account" : "Sign In"}
+                    <Arrow />
+                  </>
                 )}
-                <button
-                  type="submit"
-                  className="button button-primary auth-submit"
-                  disabled={busy || loading}
-                >
-                  {busy ? (
-                    <>
-                      <span className="spinner" />
-                      {signup ? "Creating your account…" : "Signing in…"}
-                    </>
-                  ) : (
-                    <>
-                      {signup ? "Create Account" : "Sign In"}
-                      <Arrow />
-                    </>
-                  )}
-                </button>
-              </fieldset>
-              <p className="auth-form-note">
-                {signup
-                  ? "Creating an account is the first step. You’ll review your subscription before making a payment."
-                  : "Your matchday workspace, ready when you are."}
-              </p>
-            </form>
-          )}
+              </button>
+            </fieldset>
+            <p className="auth-form-note">
+              {signup
+                ? "Creating an account is the first step. You’ll review your subscription before making a payment."
+                : "Your matchday workspace, ready when you are."}
+            </p>
+          </form>
           <div className="auth-switch">
             {signup ? "Already have an account?" : "Don’t have an account?"}{" "}
             <Link href={alternateRoute}>

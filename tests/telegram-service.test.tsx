@@ -178,6 +178,17 @@ describe("telegram api adapter", () => {
     ).rejects.toMatchObject({ code: "flood-wait", retryAfterSeconds: 42 });
     fetchMock.mockResolvedValueOnce(
       errorEnvelope(
+        400,
+        "flood_wait",
+        "Too many requests, try again in 17 seconds",
+        { retry_after_seconds: 17 },
+      ),
+    );
+    await expect(
+      service.startConnection({ phoneNumber: "+447700900124" }),
+    ).rejects.toMatchObject({ code: "flood-wait", retryAfterSeconds: 17 });
+    fetchMock.mockResolvedValueOnce(
+      errorEnvelope(
         401,
         "not_authenticated",
         "Authentication credentials were not provided.",

@@ -62,6 +62,8 @@ function AdminOnly({ children }: { children: ReactNode }) {
 
 function OwnerOnly({ children }: { children: ReactNode }) {
   const { user } = useSession();
+  // The backend treats platform superusers as workspace owners as well.
+  if (user?.isSuperuser) return <>{children}</>;
   if (!user?.isAdmin || user.role !== "owner")
     return (
       <main className="state-page">

@@ -209,7 +209,7 @@ export function WorkspaceView({
           <h1>{workspace?.name ?? "Your workspace"}</h1>
           <p>
             Manage who can see this workspace’s signal feed and who can connect
-            Telegram accounts, watch chats and run relays.
+            Telegram accounts and manage watched chats.
           </p>
         </div>
         <button
