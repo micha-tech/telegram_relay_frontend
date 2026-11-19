@@ -351,7 +351,9 @@ export function SignalTemplatesView({
             <code>{"{{ source }}"}</code>, <code>{"{{ account }}"}</code>,{" "}
             <code>{"{{ author }}"}</code>, <code>{"{{ sent_at }}"}</code>,{" "}
             <code>{"{{ date }}"}</code>, <code>{"{{ message_id }}"}</code>,{" "}
-            <code>{"{{ peer_id }}"}</code>.
+            <code>{"{{ peer_id }}"}</code>. Only exact placeholders are
+            replaced; all other text — including apostrophes and braces — is
+            kept exactly as written.
           </span>
         </label>
 

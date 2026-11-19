@@ -39,7 +39,7 @@ No SPA rewrite or `200.html` fallback is required. Remove any Vite-era catch-all
 - `src/services/telegram.ts`: typed adapter for the Django/Telethon relay API, configured by `NEXT_PUBLIC_TELEGRAM_API_BASE_URL`. Dialogs expose `sourceId`/`destinationId` TelegramEntity UUIDs.
 - `src/services/signals.ts` and `src/views/SignalsView.tsx`: shared signal feed and statistics for all workspace members.
 - `src/views/SignalSourcesView.tsx`: admin-only watched chats; forwarding targets are selected from the account's destination dialogs and sent as `forward_to` entity UUIDs. Each source can assign a reusable formatting template.
-- `src/services/templates.ts` and `src/views/SignalTemplatesView.tsx`: admin-only signal formatting templates with cleanup rules, a Django-style body template, and a live preview endpoint.
+- `src/services/templates.ts` and `src/views/SignalTemplatesView.tsx`: admin-only signal formatting templates with cleanup rules, a placeholder-based body, and a live preview endpoint.
 - `public/football-artwork.png`: original supplied artwork, displayed through `next/image`.
 
 Next.js prerenders the landing page and server-renders auth pages. Static marketing content remains in Server Components; interactive elements use Client Components. Native metadata replaces the previous client updater. Vite entry points, React Router and custom HTML generation were removed.
@@ -118,7 +118,7 @@ Workspace admins can create reusable templates on `/dashboard/signal-templates` 
 | DELETE | `/signal-templates/{id}/`    | Delete a template                    |
 | POST   | `/signal-templates/preview/` | Dry-run a config against sample text |
 
-The body uses Django template syntax with `autoescape=False`. Available placeholders are `{{ text }}`, `{{ source }}`, `{{ account }}`, `{{ author }}`, `{{ sent_at }}`, `{{ date }}`, `{{ message_id }}` and `{{ peer_id }}`. Preview returns `{ formatted, skipped }` and never sends a message. Regex patterns and replacements are validated server-side before a template is saved or previewed.
+The body is plain text with simple placeholder substitution: `{{ text }}`, `{{ source }}`, `{{ account }}`, `{{ author }}`, `{{ sent_at }}`, `{{ date }}`, `{{ message_id }}` and `{{ peer_id }}`. Only exact placeholders are replaced; apostrophes, quotes and other text are kept literally, so prose like `you're welcome to football` is safe. Preview returns `{ formatted, skipped }` and never sends a message. Regex patterns and replacements are validated server-side before a template is saved or previewed.
 
 ### Required backend CORS
 
