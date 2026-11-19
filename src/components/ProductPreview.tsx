@@ -188,7 +188,8 @@ function Flow() {
         <line x1="0" x2="570" y1="23" y2="23" stroke="#3c4843" />
         {Array.from({ length: 72 }, (_, i) => {
           const up = Math.sin(i * 0.63) + Math.cos(i * 0.27) > -0.3;
-          const h = 3 + Math.abs(Math.sin(i * 1.93) * 15);
+          // Round away engine-specific float noise so SSR and hydration agree.
+          const h = Number((3 + Math.abs(Math.sin(i * 1.93) * 15)).toFixed(6));
           return (
             <rect
               key={i}

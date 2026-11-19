@@ -186,6 +186,7 @@ export function AuthPage({
               width={1448}
               height={1086}
               sizes="(max-width: 740px) 1px, 50vw"
+              loading="eager"
             />
           </div>
           <div className="auth-story-note">

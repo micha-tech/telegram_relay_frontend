@@ -29,7 +29,11 @@ export const viewport: Viewport = { themeColor: "#030716" };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={plusJakartaSans.variable}>
+    <html
+      lang="en"
+      className={plusJakartaSans.variable}
+      data-scroll-behavior="smooth"
+    >
       <body>
         <SessionProvider>{children}</SessionProvider>
       </body>
