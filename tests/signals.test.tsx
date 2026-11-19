@@ -25,6 +25,10 @@ import type {
   TelegramService,
 } from "../src/services/telegram";
 import type { AuthService, User } from "../src/services/auth";
+import type {
+  SignalTemplate,
+  TemplatesService,
+} from "../src/services/templates";
 
 const navigation = vi.hoisted(() => ({
   replace: vi.fn(),
@@ -143,6 +147,8 @@ function source(overrides: Partial<SignalSource> = {}): SignalSource {
     accountLabel: "Analyst",
     entityId: "3",
     forwardToId: null,
+    templateId: null,
+    templateName: null,
     chatTitle: "Betting tips",
     chatUsername: "tips",
     peerId: "-1001234567890",
@@ -155,6 +161,38 @@ function source(overrides: Partial<SignalSource> = {}): SignalSource {
     createdAt: "2026-01-01T09:00:00.000Z",
     ...overrides,
   };
+}
+
+function template(overrides: Partial<SignalTemplate> = {}): SignalTemplate {
+  return {
+    id: "tpl-1",
+    tenantId: "tenant-1",
+    name: "Clean tips",
+    body: "{{ text }}",
+    header: "",
+    footer: "",
+    stripHeaderLines: 0,
+    removeUrls: false,
+    removePatterns: [],
+    replacements: [],
+    dropEmpty: true,
+    createdAt: "2026-01-01T09:00:00.000Z",
+    updatedAt: "2026-01-01T09:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function templatesService(
+  overrides: Partial<TemplatesService> = {},
+): TemplatesService {
+  return {
+    listTemplates: vi.fn().mockResolvedValue([template()]),
+    createTemplate: vi.fn(),
+    updateTemplate: vi.fn(),
+    deleteTemplate: vi.fn(),
+    previewTemplate: vi.fn(),
+    ...overrides,
+  } as TemplatesService;
 }
 
 function account(overrides: Partial<TelegramAccount> = {}): TelegramAccount {
@@ -324,6 +362,36 @@ describe("signal sources administration", () => {
         forwardEnabled: true,
         forwardToId: "4",
       }),
+    );
+  });
+
+  it("assigns a formatting template to a watched chat", async () => {
+    const service = signalsService();
+    render(
+      <SignalSourcesView
+        service={service}
+        telegram={telegramService()}
+        templates={templatesService()}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Watched chats (1)")).toBeTruthy(),
+    );
+    await userEvent.selectOptions(
+      screen.getByLabelText("Chat"),
+      await screen.findByRole("option", { name: "Betting tips" }),
+    );
+    await userEvent.selectOptions(
+      screen.getByLabelText(/Formatting template/),
+      await screen.findByRole("option", { name: "Clean tips" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Add watched chat" }),
+    );
+
+    await waitFor(() => expect(service.createSource).toHaveBeenCalled());
+    expect(service.createSource).toHaveBeenCalledWith(
+      expect.objectContaining({ templateId: "tpl-1" }),
     );
   });
 

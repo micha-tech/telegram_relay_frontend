@@ -9,6 +9,8 @@ import type {
 } from "../services/telegram";
 import { signalsErrorMessage, signalsService } from "../services/signals";
 import type { SignalSource, SignalsService } from "../services/signals";
+import { templatesService } from "../services/templates";
+import type { SignalTemplate, TemplatesService } from "../services/templates";
 
 interface SourceForm {
   name: string;
@@ -16,6 +18,8 @@ interface SourceForm {
   forwardEnabled: boolean;
   /** TelegramEntity UUID for a destination chat (not the raw peer ID). */
   forwardToId: string;
+  /** SignalTemplate UUID applied to forwarded copies of this source. */
+  templateId: string;
 }
 
 const EMPTY_FORM: SourceForm = {
@@ -23,6 +27,7 @@ const EMPTY_FORM: SourceForm = {
   backfillLimit: "200",
   forwardEnabled: false,
   forwardToId: "",
+  templateId: "",
 };
 
 function formatWhen(value: string | null) {
@@ -35,12 +40,15 @@ function formatWhen(value: string | null) {
 export function SignalSourcesView({
   service = signalsService,
   telegram = telegramService,
+  templates = templatesService,
 }: {
   service?: SignalsService;
   telegram?: TelegramService;
+  templates?: TemplatesService;
 }) {
   const [accounts, setAccounts] = useState<TelegramAccount[]>([]);
   const [sources, setSources] = useState<SignalSource[]>([]);
+  const [templateList, setTemplateList] = useState<SignalTemplate[]>([]);
   const [dialogs, setDialogs] = useState<TelegramDialog[]>([]);
   const [accountId, setAccountId] = useState("");
   const [selectedDialog, setSelectedDialog] = useState<TelegramDialog | null>(
@@ -60,12 +68,14 @@ export function SignalSourcesView({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [accountList, sourceList] = await Promise.all([
+      const [accountList, sourceList, templateItems] = await Promise.all([
         telegram.listAccounts(),
         service.listSources(),
+        templates.listTemplates().catch(() => [] as SignalTemplate[]),
       ]);
       setAccounts(accountList);
       setSources(sourceList);
+      setTemplateList(templateItems);
       setAccountId((current) => current || accountList[0]?.id || "");
       setErrorMessage("");
     } catch (err) {
@@ -73,7 +83,7 @@ export function SignalSourcesView({
     } finally {
       setLoading(false);
     }
-  }, [service, telegram]);
+  }, [service, telegram, templates]);
 
   useEffect(() => {
     void load();
@@ -120,6 +130,7 @@ export function SignalSourcesView({
       backfillLimit: String(source.backfillLimit),
       forwardEnabled: source.forwardEnabled,
       forwardToId: source.forwardToId ?? "",
+      templateId: source.templateId ?? "",
     });
   }
 
@@ -140,6 +151,7 @@ export function SignalSourcesView({
       backfillLimit: Number(form.backfillLimit) || 200,
       forwardEnabled: form.forwardEnabled,
       forwardToId: form.forwardEnabled ? form.forwardToId || null : null,
+      templateId: form.templateId || null,
     };
     try {
       if (editingId) {
@@ -334,6 +346,29 @@ export function SignalSourcesView({
         </div>
 
         <div className="sig-editor-grid">
+          <label className="sig-field sig-field-grow">
+            <span>Formatting template</span>
+            <select
+              value={form.templateId}
+              onChange={(event) =>
+                updateForm({ templateId: event.target.value })
+              }
+            >
+              <option value="">Raw text (no template)</option>
+              {templateList.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+            <span className="sig-hint">
+              Applied only to forwarded copies. Manage templates on the Signal
+              Templates page.
+            </span>
+          </label>
+        </div>
+
+        <div className="sig-editor-grid">
           <label className="sig-check">
             <input
               type="checkbox"
@@ -449,6 +484,8 @@ export function SignalSourcesView({
                   <dd>{formatWhen(source.lastSignalAt)}</dd>
                   <dt>Last scrape</dt>
                   <dd>{formatWhen(source.lastScrapedAt)}</dd>
+                  <dt>Forward template</dt>
+                  <dd>{source.templateName ?? "Raw text"}</dd>
                 </dl>
 
                 <div className="tg-card-actions">

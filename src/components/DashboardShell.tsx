@@ -28,6 +28,11 @@ const NAV_ITEMS: NavItem[] = [
     adminOnly: true,
   },
   {
+    href: "/dashboard/signal-templates",
+    label: "Signal Templates",
+    adminOnly: true,
+  },
+  {
     href: "/dashboard/workspace",
     label: "Workspace",
     adminOnly: true,

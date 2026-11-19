@@ -117,6 +117,17 @@ test("telegram accounts route requires authentication", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("signal templates route requires authentication", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/dashboard/signal-templates");
+  await expect(page).toHaveURL(
+    /\/login\?next=%2Fdashboard%2Fsignal-templates$/,
+  );
+  await expect(page.getByLabel("Email address")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 for (const width of [320, 390, 768, 1024, 1440]) {
   test(`no horizontal overflow at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });

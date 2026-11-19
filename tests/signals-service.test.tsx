@@ -40,6 +40,8 @@ const sourcePayload = {
   account: 7,
   account_label: "Analyst",
   entity: 3,
+  template: "66666666-6666-6666-6666-666666666666",
+  template_name: "Clean tips",
   chat_title: "Betting tips",
   chat_username: "tips",
   peer_id: -1001234567890,
@@ -137,6 +139,8 @@ describe("signals api adapter", () => {
       id: "55555555-5555-5555-5555-555555555555",
       accountId: "7",
       entityId: "3",
+      templateId: "66666666-6666-6666-6666-666666666666",
+      templateName: "Clean tips",
       enabled: true,
       backfillLimit: 200,
     });
@@ -148,6 +152,21 @@ describe("signals api adapter", () => {
       entity: "3",
       name: "Betting tips",
       backfill_limit: 200,
+    });
+  });
+
+  it("sends the assigned template UUID as template", async () => {
+    fetchMock.mockResolvedValue(envelope(sourcePayload, 201));
+    await service.updateSource("55555555-5555-5555-5555-555555555555", {
+      templateId: "66666666-6666-6666-6666-666666666666",
+    });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      "https://api.example.test/api/v1/signal-sources/55555555-5555-5555-5555-555555555555/",
+    );
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(String(init.body))).toEqual({
+      template: "66666666-6666-6666-6666-666666666666",
     });
   });
 

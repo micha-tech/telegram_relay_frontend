@@ -38,7 +38,8 @@ No SPA rewrite or `200.html` fallback is required. Remove any Vite-era catch-all
 - `src/components/TelegramAccountCard.tsx`: per-account details, reconnect, health check, recent activity and disconnect.
 - `src/services/telegram.ts`: typed adapter for the Django/Telethon relay API, configured by `NEXT_PUBLIC_TELEGRAM_API_BASE_URL`. Dialogs expose `sourceId`/`destinationId` TelegramEntity UUIDs.
 - `src/services/signals.ts` and `src/views/SignalsView.tsx`: shared signal feed and statistics for all workspace members.
-- `src/views/SignalSourcesView.tsx`: admin-only watched chats; forwarding targets are selected from the account's destination dialogs and sent as `forward_to` entity UUIDs.
+- `src/views/SignalSourcesView.tsx`: admin-only watched chats; forwarding targets are selected from the account's destination dialogs and sent as `forward_to` entity UUIDs. Each source can assign a reusable formatting template.
+- `src/services/templates.ts` and `src/views/SignalTemplatesView.tsx`: admin-only signal formatting templates with cleanup rules, a Django-style body template, and a live preview endpoint.
 - `public/football-artwork.png`: original supplied artwork, displayed through `next/image`.
 
 Next.js prerenders the landing page and server-renders auth pages. Static marketing content remains in Server Components; interactive elements use Client Components. Native metadata replaces the previous client updater. Vite entry points, React Router and custom HTML generation were removed.
@@ -53,6 +54,7 @@ Next.js prerenders the landing page and server-renders auth pages. Static market
 | `/dashboard`                   | Protected account shell; guests redirect to sign-in |
 | `/dashboard/signals`           | Shared signal feed for every workspace member       |
 | `/dashboard/signal-sources`    | Administrator-only watched chats and forwarding     |
+| `/dashboard/signal-templates`  | Administrator-only signal formatting templates      |
 | `/dashboard/telegram-accounts` | Administrator-only Telegram account management      |
 | `/dashboard/workspace`         | Workspace details, members, roles and invites       |
 | Unknown path                   | Next.js 404 page with a route home                  |
@@ -103,6 +105,20 @@ Owners and admins can manage members and invites; only owners can rename the wor
 There is no per-chat or per-feature permission editor. Relay writes require an admin role server-side; members can read relays but cannot create, edit, enable or delete them. The frontend has no relay editor yet, so the workspace page does not advertise one.
 
 Invites may be email-locked: the backend rejects registration with a different email, and the signup page previews the reserved address and validates it before submitting.
+
+### Signal formatting templates
+
+Workspace admins can create reusable templates on `/dashboard/signal-templates` and assign one to each watched chat on `/dashboard/signal-sources`. Templates change **only the copy forwarded to the destination chat** — the stored feed keeps the raw signal text so it stays faithful and searchable. The backend applies these steps in order: strip the first N header lines, remove regex matches, remove URLs, apply literal replacements, render the body template, then prepend the header and append the footer. Messages that become empty are skipped by default.
+
+| Method | Endpoint                     | Purpose                              |
+| ------ | ---------------------------- | ------------------------------------ |
+| GET    | `/signal-templates/`         | List workspace templates             |
+| POST   | `/signal-templates/`         | Create a template                    |
+| PATCH  | `/signal-templates/{id}/`    | Update a template                    |
+| DELETE | `/signal-templates/{id}/`    | Delete a template                    |
+| POST   | `/signal-templates/preview/` | Dry-run a config against sample text |
+
+The body uses Django template syntax with `autoescape=False`. Available placeholders are `{{ text }}`, `{{ source }}`, `{{ account }}`, `{{ author }}`, `{{ sent_at }}`, `{{ date }}`, `{{ message_id }}` and `{{ peer_id }}`. Preview returns `{ formatted, skipped }` and never sends a message. Regex patterns and replacements are validated server-side before a template is saved or previewed.
 
 ### Required backend CORS
 

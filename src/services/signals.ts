@@ -66,6 +66,8 @@ export interface SignalSource {
   accountLabel: string | null;
   entityId: string;
   forwardToId: string | null;
+  templateId: string | null;
+  templateName: string | null;
   chatTitle: string | null;
   chatUsername: string | null;
   peerId: string | null;
@@ -82,6 +84,7 @@ export interface SignalSourceInput {
   accountId: string;
   entityId: string;
   forwardToId?: string | null;
+  templateId?: string | null;
   name?: string;
   enabled?: boolean;
   forwardEnabled?: boolean;
@@ -229,6 +232,8 @@ function parseSource(value: unknown): SignalSource {
     accountLabel: readString(record, "account_label"),
     entityId,
     forwardToId: readId(record.forward_to),
+    templateId: readId(record.template),
+    templateName: readString(record, "template_name"),
     chatTitle: readString(record, "chat_title"),
     chatUsername: readString(record, "chat_username"),
     peerId: readId(record.peer_id),
@@ -262,6 +267,7 @@ function toSourceBody(input: Partial<SignalSourceInput>) {
   if (input.accountId) body.account = input.accountId;
   if (input.entityId) body.entity = input.entityId;
   if (input.forwardToId !== undefined) body.forward_to = input.forwardToId;
+  if (input.templateId !== undefined) body.template = input.templateId;
   if (input.name !== undefined) body.name = input.name;
   if (input.enabled !== undefined) body.enabled = input.enabled;
   if (input.forwardEnabled !== undefined)
